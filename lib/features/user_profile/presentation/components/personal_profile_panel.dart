@@ -218,6 +218,9 @@ class PersonalProfilePanel extends ConsumerWidget {
                         : 'Not provided',
                     colors: colors,
                     context: context,
+                    copyMessage: account.phoneNumber.isNotEmpty
+                        ? 'Phone number copied to clipboard'
+                        : null,
                   ),
                   const SizedBox(height: 8),
 
@@ -228,6 +231,7 @@ class PersonalProfilePanel extends ConsumerWidget {
                     colors: colors,
                     context: context,
                     isLink: true,
+                    copyMessage: 'Email copied to clipboard',
                   ),
                 ],
               ),
@@ -300,6 +304,7 @@ class _ContactRow extends StatelessWidget {
     required this.colors,
     required this.context,
     this.isLink = false,
+    this.copyMessage,
   });
 
   final IconData icon;
@@ -307,6 +312,9 @@ class _ContactRow extends StatelessWidget {
   final AppPalette colors;
   final BuildContext context;
   final bool isLink;
+
+  /// Toast shown after [label] is copied. The copy icon is hidden when null.
+  final String? copyMessage;
 
   @override
   Widget build(BuildContext buildContext) {
@@ -325,11 +333,20 @@ class _ContactRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        InkWell(
-          onTap: () {},
-          borderRadius: BorderRadius.circular(4),
-          child: Icon(Icons.copy_outlined, size: 14, color: colors.textHint),
-        ),
+        if (copyMessage != null)
+          InkWell(
+            onTap: () async {
+              await Clipboard.setData(ClipboardData(text: label));
+              if (!buildContext.mounted) return;
+              AppToastService.show(
+                buildContext,
+                type: AppToastType.success,
+                message: copyMessage!,
+              );
+            },
+            borderRadius: BorderRadius.circular(4),
+            child: Icon(Icons.copy_outlined, size: 14, color: colors.textHint),
+          ),
       ],
     );
   }
