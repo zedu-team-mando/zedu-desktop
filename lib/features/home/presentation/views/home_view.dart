@@ -22,6 +22,15 @@ class _HomeViewState extends ConsumerState<HomeView> {
 
   @override
   Widget build(BuildContext context) {
+    // Centralized state listener for browser tab title updates
+ ref.listen(
+      channelProvider,
+      (previous, next) {
+        final totalUnread = next.value?.fold(0, (sum, channel) => sum + channel.unreadCount) ?? 0;
+        updateBrowserTabTitle(totalUnread);
+      },
+    );
+
     final colors = context.colors;
     final showProfile = ref.watch(personalProfilePanelProvider);
 
@@ -284,8 +293,6 @@ class HomeChatArea extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Shows the channel picked in the sidebar. Its messages are not listed
-    // yet, so the header, welcome text and input hint carry the name.
     final chat = ref.watch(activeChatProvider);
     final channelName = chat.type == ActiveChatType.channel
         ? (chat.id ?? 'general')
