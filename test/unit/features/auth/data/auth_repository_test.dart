@@ -60,7 +60,7 @@ void main() {
       });
 
       test(
-        'uses a generic credentials message for client login failures',
+        'uses a generic credentials message for 400 client login failures',
         () async {
           when(
             () => mockDatasource.login(
@@ -93,7 +93,7 @@ void main() {
       );
 
       test(
-        'uses the same generic credentials message for unauthorized login',
+        'uses a generic credentials message for 401 unauthorized login',
         () async {
           when(
             () => mockDatasource.login(
@@ -121,6 +121,33 @@ void main() {
           );
         },
       );
+
+      test('preserves 429 rate limit login failures', () async {
+        when(
+          () => mockDatasource.login(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenThrow(
+          const ApiFailure(
+            message: 'Too many requests',
+            statusCode: 429,
+            path: '/auth/login',
+            kind: ApiFailureKind.client,
+          ),
+        );
+
+        final result = await repository.login(
+          email: 'test@example.com',
+          password: 'Password123',
+        );
+
+        expect(result, isA<Failure<AuthSession>>());
+        expect(
+          (result as Failure<AuthSession>).error.friendlyMessage,
+          'Too many requests',
+        );
+      });
 
       test('preserves network failures during login', () async {
         when(
@@ -166,9 +193,9 @@ void main() {
 
     group('getCurrentUser', () {
       test('returns Success<User> when datasource succeeds', () async {
-        final mockUser = ProfileModel.fromJson(
-          LoginResponseModel.mockLoginResponse['user'] as Map<String, dynamic>,
-        );
+        final mockUser = LoginResponseModel.fromJson(
+          LoginResponseModel.mockLoginResponse,
+        ).user;
 
         when(() => mockDatasource.me()).thenAnswer((_) async => mockUser);
 
@@ -202,3 +229,4 @@ void main() {
     });
   });
 }
+

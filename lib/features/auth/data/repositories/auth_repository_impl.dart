@@ -31,7 +31,10 @@ class AuthRepositoryImpl implements AuthRepository {
       );
     } on ApiFailure catch (failure) {
       AppLogger.w('Login failed — ${failure.message}', tag: _tag);
-      if (failure.kind == ApiFailureKind.client ||
+      // Only normalize actual invalid-credential responses (400/401).
+      // Preserve other actionable client failures like 429 rate limiting.
+      if (failure.statusCode == 400 ||
+          failure.statusCode == 401 ||
           failure.kind == ApiFailureKind.unauthorized) {
         return Failure(
           ApiFailure(
@@ -252,3 +255,4 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 }
+
