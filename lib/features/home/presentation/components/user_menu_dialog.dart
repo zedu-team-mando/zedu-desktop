@@ -11,6 +11,8 @@ class UserMenuDialog extends ConsumerWidget {
     final balance = ref.watch(orgCreditBalanceProvider);
     final displayName = authUser?.fullname ?? 'AnonymousUser';
     final status = authUser?.status ?? UserStatus.empty;
+    final orgSlug = authUser?.currentOrganisationSlug ?? '';
+    final signOutTarget = orgSlug.isEmpty ? 'Zedu' : orgSlug;
     final isOnline = status.online;
 
     return Dialog(
