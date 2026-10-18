@@ -254,8 +254,7 @@ class UserMenuDialog extends ConsumerWidget {
               // ── Sign out ───────────────────────────────────────────────────
               _MenuItemButton(
                 icon: Icons.logout_rounded,
-                label:
-                    'Sign out of ${authUser?.currentOrganisationSlug ?? 'Zedu'}',
+                label: 'Sign out',
                 isError: true,
                 onTap: () async {
                   Navigator.pop(context);
