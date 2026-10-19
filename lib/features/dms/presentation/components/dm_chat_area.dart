@@ -566,8 +566,8 @@ class _MessageBubble extends ConsumerWidget {
                           : colors.onPrimary.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: RichText(
-                      text: _parseRichText(
+                    child: SelectableText.rich(
+                      _parseRichText(
                         content,
                         TextStyle(
                           color: isMe ? Colors.white : colors.textPrimary,
