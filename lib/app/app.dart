@@ -15,8 +15,10 @@ class App extends ConsumerWidget {
       darkTheme: AppTheme.dark,
       themeMode: themeMode,
       routerConfig: AppRouter.router,
-      builder: (context, child) => CreditsPaymentDeepLinkListener(
-        child: AuthDeepLinkListener(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => WindowTitleListener(
+        child: CreditsPaymentDeepLinkListener(
+          child: AuthDeepLinkListener(child: child ?? const SizedBox.shrink()),
+        ),
       ),
     );
   }
