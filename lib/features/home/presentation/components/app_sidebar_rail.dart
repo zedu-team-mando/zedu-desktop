@@ -19,6 +19,16 @@ class AppSidebarRail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
 
+    final totalUnreadDms = ref
+        .watch(dmListProvider)
+        .maybeWhen(
+          data: (conversations) => conversations.fold<int>(
+            0,
+            (sum, conversation) => sum + conversation.unreadCount,
+          ),
+          orElse: () => 0,
+        );
+
     void select(HomeSidebarType type) {
       if (onTypeSelected != null) {
         onTypeSelected!(type);
@@ -48,6 +58,7 @@ class AppSidebarRail extends ConsumerWidget {
             icon: Icons.chat_bubble_outline,
             label: 'DMs',
             isActive: activeType == HomeSidebarType.dms,
+            badgeCount: totalUnreadDms,
             onTap: () => select(HomeSidebarType.dms),
           ),
           _RailNavItem(
@@ -151,12 +162,14 @@ class _RailNavItem extends StatelessWidget {
     required this.icon,
     required this.label,
     this.isActive = false,
+    this.badgeCount = 0,
     this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool isActive;
+  final int badgeCount;
   final VoidCallback? onTap;
 
   @override
@@ -169,16 +182,27 @@ class _RailNavItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
         child: Column(
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: isActive
-                    ? colors.primary.withValues(alpha: 0.95)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Icon(icon, color: colors.onPrimary, size: 18),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? colors.primary.withValues(alpha: 0.95)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: Icon(icon, color: colors.onPrimary, size: 18),
+                ),
+                if (badgeCount > 0)
+                  Positioned(
+                    right: -4,
+                    top: -4,
+                    child: _UnreadBadge(count: badgeCount),
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -190,6 +214,36 @@ class _RailNavItem extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final text = count > 99 ? '99+' : '$count';
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.error,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
