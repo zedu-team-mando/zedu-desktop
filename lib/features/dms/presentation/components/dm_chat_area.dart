@@ -86,10 +86,24 @@ class _DmChatAreaState extends ConsumerState<DmChatArea> {
                                   index,
                                 ) {
                                   final msg = messages[index];
-                                  return _MessageBubble(
+                                  final bubble = _MessageBubble(
                                     message: msg,
                                     conversation: widget.conversation,
                                     channelId: widget.conversation.channelId,
+                                  );
+                                  final dayLabel = dmDayDividerLabel(
+                                    messages,
+                                    index,
+                                    now: DateTime.now(),
+                                  );
+                                  if (dayLabel == null) return bubble;
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      DmDayDivider(label: dayLabel),
+                                      bubble,
+                                    ],
                                   );
                                 }, childCount: messages.length),
                               ),

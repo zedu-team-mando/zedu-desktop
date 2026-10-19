@@ -7,3 +7,4 @@ export 'dm_emoji_picker.dart';
 export 'buzz_preparation_view.dart';
 export 'buzz_meeting_view.dart';
 export 'dm_profile_card.dart';
+export 'dm_day_divider.dart';
