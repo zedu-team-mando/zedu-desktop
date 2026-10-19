@@ -10,6 +10,8 @@ class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource _remote;
 
   static const _tag = 'AuthRepository';
+  static const _invalidCredentialsMessage =
+      'Invalid email or password. Please check your credentials and try again.';
 
   @override
   Future<Result<AuthSession>> login({
@@ -29,6 +31,20 @@ class AuthRepositoryImpl implements AuthRepository {
       );
     } on ApiFailure catch (failure) {
       AppLogger.w('Login failed — ${failure.message}', tag: _tag);
+      // Only normalize actual invalid-credential responses (400/401).
+      // Preserve other actionable client failures like 429 rate limiting.
+      if (failure.statusCode == 400 ||
+          failure.statusCode == 401 ||
+          failure.kind == ApiFailureKind.unauthorized) {
+        return Failure(
+          ApiFailure(
+            message: _invalidCredentialsMessage,
+            statusCode: failure.statusCode,
+            path: failure.path,
+            kind: ApiFailureKind.client,
+          ),
+        );
+      }
       return Failure(failure);
     } catch (error) {
       AppLogger.e('Unexpected login error', tag: _tag, error: error);
@@ -239,3 +255,4 @@ class AuthRepositoryImpl implements AuthRepository {
     }
   }
 }
+

@@ -59,6 +59,121 @@ void main() {
         expect(result, isA<Failure<AuthSession>>());
       });
 
+      test(
+        'uses a generic credentials message for 400 client login failures',
+        () async {
+          when(
+            () => mockDatasource.login(
+              email: any(named: 'email'),
+              password: any(named: 'password'),
+            ),
+          ).thenThrow(
+            const ApiFailure(
+              message: 'Invalid email and password supplied',
+              statusCode: 400,
+              path: '/auth/login',
+              kind: ApiFailureKind.client,
+            ),
+          );
+
+          final result = await repository.login(
+            email: 'test@example.com',
+            password: 'wrongpass',
+          );
+
+          expect(result, isA<Failure<AuthSession>>());
+          final failure = (result as Failure<AuthSession>).error;
+          expect(
+            failure.friendlyMessage,
+            'Invalid email or password. Please check your credentials and try again.',
+          );
+          expect(failure.statusCode, 400);
+          expect(failure.path, '/auth/login');
+        },
+      );
+
+      test(
+        'uses a generic credentials message for 401 unauthorized login',
+        () async {
+          when(
+            () => mockDatasource.login(
+              email: any(named: 'email'),
+              password: any(named: 'password'),
+            ),
+          ).thenThrow(
+            const ApiFailure(
+              message: 'Invalid credentials',
+              statusCode: 401,
+              path: '/auth/login',
+              kind: ApiFailureKind.unauthorized,
+            ),
+          );
+
+          final result = await repository.login(
+            email: 'test@example.com',
+            password: 'wrongpass',
+          );
+
+          expect(result, isA<Failure<AuthSession>>());
+          expect(
+            (result as Failure<AuthSession>).error.friendlyMessage,
+            'Invalid email or password. Please check your credentials and try again.',
+          );
+        },
+      );
+
+      test('preserves 429 rate limit login failures', () async {
+        when(
+          () => mockDatasource.login(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenThrow(
+          const ApiFailure(
+            message: 'Too many requests',
+            statusCode: 429,
+            path: '/auth/login',
+            kind: ApiFailureKind.client,
+          ),
+        );
+
+        final result = await repository.login(
+          email: 'test@example.com',
+          password: 'Password123',
+        );
+
+        expect(result, isA<Failure<AuthSession>>());
+        expect(
+          (result as Failure<AuthSession>).error.friendlyMessage,
+          'Too many requests',
+        );
+      });
+
+      test('preserves network failures during login', () async {
+        when(
+          () => mockDatasource.login(
+            email: any(named: 'email'),
+            password: any(named: 'password'),
+          ),
+        ).thenThrow(
+          const ApiFailure(
+            message: 'connection failed',
+            kind: ApiFailureKind.network,
+          ),
+        );
+
+        final result = await repository.login(
+          email: 'test@example.com',
+          password: 'Password123',
+        );
+
+        expect(result, isA<Failure<AuthSession>>());
+        expect(
+          (result as Failure<AuthSession>).error.friendlyMessage,
+          'No internet connection. Check your network and try again.',
+        );
+      });
+
       test('returns Failure for unexpected errors', () async {
         when(
           () => mockDatasource.login(
@@ -78,9 +193,9 @@ void main() {
 
     group('getCurrentUser', () {
       test('returns Success<User> when datasource succeeds', () async {
-        final mockUser = ProfileModel.fromJson(
-          LoginResponseModel.mockLoginResponse['user'] as Map<String, dynamic>,
-        );
+        final mockUser = LoginResponseModel.fromJson(
+          LoginResponseModel.mockLoginResponse,
+        ).user;
 
         when(() => mockDatasource.me()).thenAnswer((_) async => mockUser);
 
@@ -114,3 +229,4 @@ void main() {
     });
   });
 }
+
