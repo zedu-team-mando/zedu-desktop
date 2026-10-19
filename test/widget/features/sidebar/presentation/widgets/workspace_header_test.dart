@@ -2,24 +2,50 @@ import 'package:zedu/core/core.dart';
 import 'package:zedu/features/features.dart';
 import '../../../../../helpers/helpers.dart';
 
+// Fake notifier that avoids GetIt/locator setup and records retries.
 class FakeWorkspaceNotifier extends WorkspaceNotifier {
-  static const _workspace = Workspace(
-    id: '1',
-    name: 'commabuster',
-    avatar: '',
-    membersCount: 12,
-  );
+  FakeWorkspaceNotifier(this._initial);
+
+  final WorkspaceState _initial;
+  int fetchCalls = 0;
 
   @override
-  WorkspaceState build() => const WorkspaceState(
-    workspaces: [_workspace],
-    selectedWorkspace: _workspace,
+  WorkspaceState build() => _initial;
+
+  @override
+  Future<void> fetchWorkspaces() async {
+    fetchCalls++;
+  }
+}
+
+Widget buildHeaderUnderTest(FakeWorkspaceNotifier notifier) {
+  return ProviderScope(
+    overrides: [workspaceProvider.overrideWith(() => notifier)],
+    child: buildTestMaterialApp(
+      const Scaffold(body: WorkspaceSwitcherHeader()),
+    ),
   );
 }
 
-Widget buildHeaderUnderTest() {
+const _menuWorkspace = Workspace(
+  id: '1',
+  name: 'commabuster',
+  avatar: '',
+  membersCount: 12,
+);
+
+Widget buildMenuHeaderUnderTest() {
   return ProviderScope(
-    overrides: [workspaceProvider.overrideWith(FakeWorkspaceNotifier.new)],
+    overrides: [
+      workspaceProvider.overrideWith(
+        () => FakeWorkspaceNotifier(
+          const WorkspaceState(
+            workspaces: [_menuWorkspace],
+            selectedWorkspace: _menuWorkspace,
+          ),
+        ),
+      ),
+    ],
     child: MaterialApp(
       home: Scaffold(
         body: Align(
@@ -53,12 +79,62 @@ Future<void> useTestWindow(WidgetTester tester) async {
 
 void main() {
   group('WorkspaceSwitcherHeader', () {
+    testWidgets('shows the selected organisation name', (tester) async {
+      const workspace = Workspace(
+        id: 'org-1',
+        name: 'Riverside Academy',
+        avatar: '',
+      );
+      await tester.pumpWidget(
+        buildHeaderUnderTest(
+          FakeWorkspaceNotifier(
+            const WorkspaceState(
+              workspaces: [workspace],
+              selectedWorkspace: workspace,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Riverside Academy'), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+    });
+
+    testWidgets('shows the error and retries when loading failed', (
+      tester,
+    ) async {
+      final notifier = FakeWorkspaceNotifier(
+        const WorkspaceState(errorMessage: WorkspaceNotifier.loadErrorMessage),
+      );
+      await tester.pumpWidget(buildHeaderUnderTest(notifier));
+
+      expect(find.text(WorkspaceNotifier.loadErrorMessage), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+
+      expect(notifier.fetchCalls, 1);
+    });
+
+    testWidgets('shows nothing while there is no organisation and no error', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        buildHeaderUnderTest(
+          FakeWorkspaceNotifier(const WorkspaceState(isLoading: true)),
+        ),
+      );
+
+      expect(find.text('Retry'), findsNothing);
+      expect(find.byType(Text), findsNothing);
+    });
+
     testWidgets('opens the menu under the name and flips the arrow', (
       tester,
     ) async {
       await useTestWindow(tester);
 
-      await tester.pumpWidget(buildHeaderUnderTest());
+      await tester.pumpWidget(buildMenuHeaderUnderTest());
       await tester.pump();
 
       final headerRect = tester.getRect(find.byType(WorkspaceSwitcherHeader));
@@ -86,7 +162,7 @@ void main() {
     ) async {
       await useTestWindow(tester);
 
-      await tester.pumpWidget(buildHeaderUnderTest());
+      await tester.pumpWidget(buildMenuHeaderUnderTest());
       await tester.pump();
 
       await tester.tap(find.text('commabuster'));
@@ -113,7 +189,7 @@ void main() {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
 
-        await tester.pumpWidget(buildHeaderUnderTest());
+        await tester.pumpWidget(buildMenuHeaderUnderTest());
         await tester.pump();
 
         await tester.tap(find.text('commabuster'));
