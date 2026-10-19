@@ -9,12 +9,15 @@ class AppearanceSection extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final primaryTextColor = isDark ? Colors.white : const Color(0xFF1E1E1E);
-    final secondaryTextColor =
-        isDark ? const Color(0xFF9CA3AF) : const Color(0xFF4B5563);
-    final subtleTextColor =
-        isDark ? const Color(0xFF6B7280) : const Color(0xFF6B7280);
-    final dividerColor =
-        isDark ? const Color(0xFF2B2E33) : const Color(0xFFE5E7EB);
+    final secondaryTextColor = isDark
+        ? const Color(0xFF9CA3AF)
+        : const Color(0xFF4B5563);
+    final subtleTextColor = isDark
+        ? const Color(0xFF6B7280)
+        : const Color(0xFF6B7280);
+    final dividerColor = isDark
+        ? const Color(0xFF2B2E33)
+        : const Color(0xFFE5E7EB);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -41,10 +44,7 @@ class AppearanceSection extends ConsumerWidget {
         const SizedBox(height: 6),
         Text(
           'Choose how Zedu looks to you. Select a single color mode, or sync with your computer\'s appearance.',
-          style: TextStyle(
-            fontSize: 14,
-            color: secondaryTextColor,
-          ),
+          style: TextStyle(fontSize: 14, color: secondaryTextColor),
         ),
         const SizedBox(height: 24),
         Text(
@@ -58,10 +58,7 @@ class AppearanceSection extends ConsumerWidget {
         const SizedBox(height: 4),
         Text(
           'Changing this only affects this device, just like Slack.',
-          style: TextStyle(
-            fontSize: 13,
-            color: subtleTextColor,
-          ),
+          style: TextStyle(fontSize: 13, color: subtleTextColor),
         ),
         const SizedBox(height: 18),
         Row(
@@ -154,8 +151,9 @@ class _ModeOptionCard extends StatelessWidget {
         ? const Color(0xFF6458F5)
         : (isDark ? const Color(0xFF2B2E33) : const Color(0xFFE5E7EB));
     final titleColor = isDark ? Colors.white : const Color(0xFF1E1E1E);
-    final descColor =
-        isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280);
+    final descColor = isDark
+        ? const Color(0xFF9CA3AF)
+        : const Color(0xFF6B7280);
 
     return InkWell(
       onTap: onTap,
@@ -165,10 +163,7 @@ class _ModeOptionCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: cardBorder,
-            width: isSelected ? 1.5 : 1,
-          ),
+          border: Border.all(color: cardBorder, width: isSelected ? 1.5 : 1),
           color: cardBg,
         ),
         child: Column(
@@ -194,10 +189,7 @@ class _ModeOptionCard extends StatelessWidget {
               padding: const EdgeInsets.only(left: 24),
               child: Text(
                 description,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: descColor,
-                ),
+                style: TextStyle(fontSize: 12, color: descColor),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
