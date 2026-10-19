@@ -1,87 +1,152 @@
 import 'package:zedu/core/core.dart';
 import 'package:zedu/features/features.dart';
 
-final currentOrgIdProvider = Provider<String>((ref) {
-  final workspace = ref.watch(workspaceProvider).selectedWorkspace;
-  return workspace?.id ?? '';
-});
+import '../../../../../helpers/helpers.dart';
 
-final dmListProvider =
-    AsyncNotifierProvider<DmListNotifier, List<DmConversation>>(() {
-      return DmListNotifier();
-    });
-
-class SelectedDmNotifier extends Notifier<DmConversation?> {
-  @override
-  DmConversation? build() => null;
-
-  void select(DmConversation? conversation) {
-    state = conversation;
-  }
+Color _iconBackground(WidgetTester tester, IconData icon) {
+  final iconContainer = find
+      .ancestor(
+        of: find.byIcon(icon),
+        matching: find.byWidgetPredicate((widget) {
+          if (widget is! Container || widget.decoration is! BoxDecoration) {
+            return false;
+          }
+          final decoration = widget.decoration! as BoxDecoration;
+          return decoration.borderRadius == BorderRadius.circular(7);
+        }),
+      )
+      .first;
+  final decoration =
+      tester.widget<Container>(iconContainer).decoration! as BoxDecoration;
+  return decoration.color ?? Colors.transparent;
 }
 
-final selectedDmProvider =
-    NotifierProvider<SelectedDmNotifier, DmConversation?>(
-      SelectedDmNotifier.new,
-    );
+class _FakeDmListNotifier extends DmListNotifier {
+  _FakeDmListNotifier(this._conversations);
 
-class DmListNotifier extends AsyncNotifier<List<DmConversation>> {
-  int _currentPage = 1;
-  bool _hasMore = true;
-
-  bool get hasMore => _hasMore;
+  final List<DmConversation> _conversations;
 
   @override
-  Future<List<DmConversation>> build() async {
-    final orgId = ref.watch(currentOrgIdProvider);
-    if (orgId.isEmpty) return const [];
+  Future<List<DmConversation>> build() async => _conversations;
+}
 
-    _currentPage = 1;
-    _hasMore = true;
-    return _fetchPage(orgId, 1);
-  }
+DmConversation _conversation(String id, int unread) {
+  return DmConversation(
+    channelId: 'channel-$id',
+    username: 'User $id',
+    participantId: 'participant-$id',
+    previewMessage: 'Hello',
+    unreadCount: unread,
+  );
+}
 
-  Future<List<DmConversation>> _fetchPage(String orgId, int page) async {
-    final repository = ref.read(dmRepositoryProvider);
-    final results = await repository.getConversations(orgId: orgId, page: page);
-    if (results.length < DmRepository.pageSize) {
-      _hasMore = false;
-    }
-
-    if (results.isEmpty && page == 1) {
-      return [
-        DmConversation(
-          channelId: 'mock-channel-id-123',
-          username: 'Test User',
-          participantId: 'mock-user-id',
-          previewMessage:
-              'This is a test conversation. Tap to test the composer.',
-          unreadCount: 0,
+Future<void> _pumpRail(
+  WidgetTester tester,
+  List<DmConversation> conversations,
+) async {
+  await tester.pumpWidget(
+    buildTestMaterialApp(
+      ProviderScope(
+        overrides: [
+          dmListProvider.overrideWith(
+            () => _FakeDmListNotifier(conversations),
+          ),
+        ],
+        child: const Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: AppSidebarRail.width,
+              height: 600,
+              child: AppSidebarRail(activeType: HomeSidebarType.home),
+            ),
+          ),
         ),
+      ),
+    ),
+  );
+  await tester.pump();
+  await tester.pump();
+}
+
+void main() {
+  testWidgets(
+    'rail icons highlight on hover without clearing the active icon',
+    (tester) async {
+      await tester.pumpWidget(
+        buildTestMaterialApp(
+          ProviderScope(
+            child: const Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(
+                  width: AppSidebarRail.width,
+                  height: 600,
+                  child: AppSidebarRail(activeType: HomeSidebarType.home),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final activeColor = AppPalette.light.primary.withValues(alpha: 0.95);
+      const railIcons = [
+        Icons.home_filled,
+        Icons.chat_bubble_outline,
+        Icons.people_outline,
+        Icons.folder_open_outlined,
+        Icons.phone_outlined,
+        Icons.notifications_none_outlined,
+        Icons.settings_outlined,
       ];
-    }
 
-    return results;
-  }
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: const Offset(200, 500));
+      addTearDown(gesture.removePointer);
+      await tester.pump();
 
-  Future<void> loadMore() async {
-    if (!_hasMore) return;
-    final orgId = ref.read(currentOrgIdProvider);
-    if (orgId.isEmpty) return;
+      for (final icon in railIcons) {
+        await gesture.moveTo(tester.getCenter(find.byIcon(icon)));
+        await tester.pump();
 
-    final current = state.value ?? [];
-    _currentPage++;
-    final next = await _fetchPage(orgId, _currentPage);
-    state = AsyncValue.data([...current, ...next]);
-  }
+        expect(_iconBackground(tester, icon), activeColor);
 
-  Future<void> refresh() async {
-    final orgId = ref.read(currentOrgIdProvider);
-    if (orgId.isEmpty) return;
+        await gesture.moveTo(const Offset(200, 500));
+        await tester.pump();
 
-    _currentPage = 1;
-    _hasMore = true;
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(() => _fetchPage(orgId, 1));
-  }
+        expect(
+          _iconBackground(tester, icon),
+          icon == Icons.home_filled ? activeColor : Colors.transparent,
+        );
+        expect(_iconBackground(tester, Icons.home_filled), activeColor);
+      }
+    },
+  );
+
+  testWidgets('DMs icon shows the total unread count across conversations', (
+    tester,
+  ) async {
+    await _pumpRail(tester, [_conversation('a', 3), _conversation('b', 4)]);
+
+    expect(find.text('7'), findsOneWidget);
+  });
+
+  testWidgets('DMs icon shows no badge when every conversation is read', (
+    tester,
+  ) async {
+    await _pumpRail(tester, [_conversation('a', 0), _conversation('b', 0)]);
+
+    final badge = find.byWidgetPredicate(
+      (widget) =>
+          widget is Text && RegExp(r'^\d+\+?$').hasMatch(widget.data ?? ''),
+    );
+    expect(badge, findsNothing);
+  });
+
+  testWidgets('DMs icon caps the unread badge at 99+', (tester) async {
+    await _pumpRail(tester, [_conversation('a', 60), _conversation('b', 50)]);
+
+    expect(find.text('99+'), findsOneWidget);
+  });
 }
