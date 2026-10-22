@@ -2,7 +2,12 @@ import 'package:zedu/core/core.dart';
 import 'package:zedu/features/features.dart';
 
 class InviteTeammatesModal extends ConsumerStatefulWidget {
-  const InviteTeammatesModal({super.key});
+  const InviteTeammatesModal({super.key, this.channelName});
+
+  /// The channel/DM teammates are being invited into. When `null` (for example
+  /// when opened from the Workspace Switcher) the copy is workspace-level
+  /// instead of channel-specific.
+  final String? channelName;
 
   @override
   ConsumerState<InviteTeammatesModal> createState() =>
@@ -54,6 +59,22 @@ class _InviteTeammatesModalState extends ConsumerState<InviteTeammatesModal> {
   void dispose() {
     _emailController.dispose();
     super.dispose();
+  }
+
+  String get _inviteTitle {
+    final channel = widget.channelName;
+    if (channel != null && channel.isNotEmpty) {
+      return 'Add people to #$channel';
+    }
+    return 'Add people to workspace';
+  }
+
+  String get _inviteSubtitle {
+    final channel = widget.channelName;
+    if (channel != null && channel.isNotEmpty) {
+      return 'Search for people in your organisation and add them to #$channel.';
+    }
+    return 'Search for people in your organisation to invite them.';
   }
 
   void _addEmailFromInput() {
@@ -157,7 +178,7 @@ class _InviteTeammatesModalState extends ConsumerState<InviteTeammatesModal> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Add people to #general',
+                  _inviteTitle,
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -281,7 +302,7 @@ class _InviteTeammatesModalState extends ConsumerState<InviteTeammatesModal> {
               ),
             const SizedBox(height: 8),
             Text(
-              'Search for people in your organisation and add them to #general.',
+              _inviteSubtitle,
               style: TextStyle(fontSize: 12, color: colors.textHint),
             ),
             const SizedBox(height: 24),
