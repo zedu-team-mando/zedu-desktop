@@ -5,7 +5,8 @@ class ForgotPasswordView extends ConsumerStatefulWidget {
   const ForgotPasswordView({super.key});
 
   @override
-  ConsumerState<ForgotPasswordView> createState() => _ForgotPasswordViewState();
+  ConsumerState<ForgotPasswordView> createState() =>
+      _ForgotPasswordViewState();
 }
 
 class _ForgotPasswordViewState extends ConsumerState<ForgotPasswordView> {
@@ -58,31 +59,8 @@ class _ForgotPasswordViewState extends ConsumerState<ForgotPasswordView> {
         title: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Image.asset('assets/pngs/zedu_logo.png', width: 83, height: 31),
-              Text.rich(
-                TextSpan(
-                  text: 'Remember your password? ',
-                  style: context.textTheme.bodyLarge?.copyWith(
-                    fontWeight: FontWeight.w400,
-                    color: context.colors.textPrimary,
-                    fontFamily: FontFamily.roboto,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: 'Sign in',
-                      style: context.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w400,
-                        color: context.colors.primary,
-                        fontFamily: FontFamily.roboto,
-                      ),
-                      recognizer: TapGestureRecognizer()
-                        ..onTap = () => context.go(AppRouter.login),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),
@@ -95,16 +73,22 @@ class _ForgotPasswordViewState extends ConsumerState<ForgotPasswordView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                context.gapV(136),
+                context.gapV(100),
+                Icon(
+                  Icons.lock_outline,
+                  size: 48,
+                  color: context.colors.primary,
+                ),
+                context.gapV(24),
                 Text(
-                  'Forgot Password',
+                  'Forgot your password?',
                   style: context.textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 context.gapV(12),
                 Text(
-                  'Enter the email you used in creating your account, we will send you\ninstructions on how to reset your password.',
+                  'Enter your email and we will send you instructions to reset your password.',
                   textAlign: TextAlign.center,
                   style: context.textTheme.bodyMedium?.copyWith(
                     color: context.colors.textSecondary,
@@ -119,7 +103,7 @@ class _ForgotPasswordViewState extends ConsumerState<ForgotPasswordView> {
                       AppTextField(
                         controller: _emailController,
                         label: 'Email address',
-                        hint: 'johndoe@email.com',
+                        hint: 'Enter your email address',
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.done,
                         validator: (value) =>
@@ -127,14 +111,17 @@ class _ForgotPasswordViewState extends ConsumerState<ForgotPasswordView> {
                       ),
                       context.gapV(24),
                       AppButton(
-                        label: 'Submit',
+                        label: 'Send reset instructions',
                         loading: authState.isLoading,
                         onPressed: _onSubmitPressed,
                       ),
                       context.gapV(16),
-                      AppButton.outlined(
-                        label: 'Back to Login',
-                        onPressed: () => context.go(AppRouter.login),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => context.go(AppRouter.login),
+                          child: const Text('Back to login'),
+                        ),
                       ),
                     ],
                   ),
