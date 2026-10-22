@@ -9,6 +9,12 @@ class HomeView extends ConsumerStatefulWidget {
 }
 
 class _HomeViewState extends ConsumerState<HomeView> {
+  /// Width of the channel/DM sidebar pane. Dragging the resize handle updates it.
+  double _sidebarWidth = 320;
+
+  static const double _sidebarMinWidth = 220;
+  static const double _sidebarMaxWidth = 700;
+
   @override
   void initState() {
     super.initState();
@@ -17,6 +23,13 @@ class _HomeViewState extends ConsumerState<HomeView> {
       if (orgId != null && orgId.isNotEmpty) {
         ref.read(creditsNotifierProvider.notifier).load(orgId: orgId);
       }
+    });
+  }
+
+  void _onSidebarResize(DragUpdateDetails details) {
+    setState(() {
+      _sidebarWidth = (_sidebarWidth + details.delta.dx)
+          .clamp(_sidebarMinWidth, _sidebarMaxWidth);
     });
   }
 
@@ -34,7 +47,8 @@ class _HomeViewState extends ConsumerState<HomeView> {
             child: Row(
               children: [
                 AppSidebarRail(activeType: ref.watch(homeSidebarProvider)),
-                const _MainSidebarSwitcher(),
+                _MainSidebarSwitcher(width: _sidebarWidth),
+                SidebarResizeHandle(onDragUpdate: _onSidebarResize),
                 Expanded(
                   child: Stack(
                     children: [
@@ -53,6 +67,39 @@ class _HomeViewState extends ConsumerState<HomeView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Draggable vertical handle that resizes the channel/DM sidebar pane.
+class SidebarResizeHandle extends StatelessWidget {
+  const SidebarResizeHandle({
+    super.key,
+    required this.onDragUpdate,
+  });
+
+  final void Function(DragUpdateDetails) onDragUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeLeftRight,
+      child: GestureDetector(
+        onHorizontalDragUpdate: onDragUpdate,
+        child: Container(
+          key: const ValueKey('sidebar_resize_handle'),
+          width: 14,
+          color: Colors.transparent,
+          alignment: Alignment.center,
+          child: Container(
+            width: 1,
+            height: 28,
+            color: colors.divider.withValues(alpha: 0.5),
+          ),
+        ),
       ),
     );
   }
@@ -121,15 +168,17 @@ class _HomeAppBar extends ConsumerWidget {
 }
 
 class _MainSidebarSwitcher extends ConsumerWidget {
-  const _MainSidebarSwitcher();
+  const _MainSidebarSwitcher({required this.width});
+
+  final double width;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(homeSidebarProvider);
     if (state == HomeSidebarType.dms) {
-      return const DmSidebarList();
+      return DmSidebarList(width: width);
     }
-    return const _MainSidebar();
+    return _MainSidebar(width: width);
   }
 }
 
@@ -161,14 +210,16 @@ class _ChatAreaSwitcher extends ConsumerWidget {
 }
 
 class _MainSidebar extends StatelessWidget {
-  const _MainSidebar();
+  const _MainSidebar({this.width = 320});
+
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
     return Container(
-      width: 320,
+      width: width,
       color: colors.sidebar,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

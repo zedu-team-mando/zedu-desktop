@@ -2,14 +2,16 @@ import 'package:zedu/core/core.dart';
 import 'package:zedu/features/features.dart';
 
 class DmSidebarList extends ConsumerWidget {
-  const DmSidebarList({super.key});
+  const DmSidebarList({super.key, this.width = 320});
+
+  final double width;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
 
     return Container(
-      width: 320,
+      width: width,
       color: colors.sidebar,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
