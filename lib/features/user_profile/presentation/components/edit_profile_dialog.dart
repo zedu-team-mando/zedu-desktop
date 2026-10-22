@@ -97,6 +97,22 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
     super.dispose();
   }
 
+  /// Validates that the country field holds a recognized country name so a
+  /// stale or invented value is never submitted silently.
+  String? _validateCountry(String? value) {
+    final text = (value ?? '').trim();
+    if (text.isEmpty) {
+      return 'Select a country';
+    }
+    final isValid = kCountries.any(
+      (c) => c.toLowerCase() == text.toLowerCase(),
+    );
+    if (!isValid) {
+      return 'Select a valid country from the list';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -294,6 +310,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                                     onFieldSubmitted,
                                   ) {
                                     return TextFormField(
+                                      key: const ValueKey('country_field'),
                                       controller: controller,
                                       focusNode: focusNode,
                                       decoration: InputDecoration(
@@ -327,6 +344,9 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                                         ),
                                       ),
                                       style: context.textTheme.bodySmall,
+                                      onChanged: (value) =>
+                                          setState(() => selectedCountry = value.trim()),
+                                      validator: _validateCountry,
                                       onFieldSubmitted: (_) =>
                                           onFieldSubmitted(),
                                     );
