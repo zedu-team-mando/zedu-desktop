@@ -56,18 +56,13 @@ class NotificationService {
       _lastNotificationTimes[senderId] = now;
     }
 
-    String contentPreview = (message['content'] ?? '').toString();
-    if (contentPreview.isEmpty) {
+    String contentPreview;
+    final rawContent = (message['content'] ?? '').toString();
+    if (rawContent.isEmpty) {
       final media = message['media'] as List<dynamic>? ?? [];
-      if (media.isNotEmpty) {
-        contentPreview = 'Sent an attachment';
-      } else {
-        contentPreview = 'New message';
-      }
-    }
-
-    if (contentPreview.length > 80) {
-      contentPreview = '${contentPreview.substring(0, 77)}...';
+      contentPreview = media.isNotEmpty ? 'Sent an attachment' : 'New message';
+    } else {
+      contentPreview = dmNotificationPreview(rawContent);
     }
 
     final notification = LocalNotification(
@@ -85,4 +80,36 @@ class NotificationService {
 
     await notification.show();
   }
+}
+
+/// Maximum Unicode characters in a notification preview before truncation.
+const int _kNotificationPreviewMaxRunes = 80;
+
+/// Number of Unicode characters kept when a preview is truncated.
+const int _kNotificationPreviewTruncateRunes = 77;
+
+/// Converts raw message content (HTML from web, Markdown from desktop) into
+/// plain text safe for a desktop notification body. Long messages are
+/// truncated by Unicode character (not UTF-16 unit) so emojis are never split
+/// in half, e.g. a long message ending in an emoji ends with `…` not `�`.
+String dmNotificationPreview(String content) {
+  var text = HtmlUtils.toPlainText(content);
+  text = text
+      .replaceAll(RegExp(r'\*\*'), '') // bold
+      .replaceAll(RegExp(r'~~'), '')   // strikethrough
+      .replaceAll(RegExp(r'`'), '')    // inline code
+      .replaceAll(RegExp(r'\*'), '');  // italic (remaining single asterisks)
+  text = text.trim();
+
+  if (text.runes.length > _kNotificationPreviewMaxRunes) {
+    text = '${_truncateByRunes(text, _kNotificationPreviewTruncateRunes)}...';
+  }
+  return text;
+}
+
+/// Returns the first [maxRunes] Unicode characters of [text].
+String _truncateByRunes(String text, int maxRunes) {
+  final runes = text.runes.toList();
+  if (runes.length <= maxRunes) return text;
+  return String.fromCharCodes(runes.take(maxRunes));
 }
