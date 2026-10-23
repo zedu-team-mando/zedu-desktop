@@ -392,7 +392,7 @@ class _TabMetrics {
   static const double labelToBadge = 8;
 
   /// Gap below the label row before the active underline.
-  static const double labelToUnderline = 10;
+  static const double labelToUnderline = 6;
 
   /// Total height reserved for the underline area so switching tabs and
   /// changing counts never shifts the table below the tab strip.
@@ -420,7 +420,7 @@ class _TabMetrics {
   /// the shared header height so tab content sits centred in it.
   static const EdgeInsets tabPadding = EdgeInsets.symmetric(
     horizontal: 4,
-    vertical: 6,
+    vertical: 2,
   );
 
   /// Resolves the geometry shared by both tabs.

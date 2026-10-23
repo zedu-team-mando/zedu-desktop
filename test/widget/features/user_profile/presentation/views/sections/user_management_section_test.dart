@@ -329,10 +329,30 @@ void main() {
       final badgeRect = tester.getRect(badgeFor(label));
       final contentTop = math.min(labelRect.top, badgeRect.top);
       final contentBottom = math.max(labelRect.bottom, badgeRect.bottom);
-      // The underline is preceded by a fixed 10px gap.
-      final headerBottom = underline.top - 10;
+      // The underline is preceded by a fixed 6px gap.
+      final headerBottom = underline.top - 6;
       return (top: contentTop - tab.top, bottom: headerBottom - contentBottom);
     }
+
+    testWidgets('keeps the underline close to the vertically centred content', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+
+      for (final label in ['Members', 'Invites']) {
+        final tab = tester.getRect(tabFor(label));
+        final underline = tester.getRect(underlineFor(label));
+        final text = tester.getRect(labelFor(label));
+        final badge = tester.getRect(badgeFor(label));
+        final contentTop = math.min(text.top, badge.top);
+        final contentBottom = math.max(text.bottom, badge.bottom);
+        final visibleGap = underline.top - contentBottom;
+
+        expect(visibleGap, inInclusiveRange(6, 8));
+        expect(contentTop - tab.top, inInclusiveRange(0, 3));
+        expect(underline.bottom, moreOrLessEquals(tab.bottom, epsilon: 0.01));
+      }
+    });
 
     testWidgets('keeps both tab labels on the same baseline', (tester) async {
       await pumpSection(tester, members: createMembers(3));
