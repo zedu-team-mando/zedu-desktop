@@ -21,7 +21,7 @@ class UserProfileNotifier extends Notifier<UserProfileState> {
     );
   }
 
-  Future<void> updateAccount(ProfileAccount account) async {
+  Future<bool> updateAccount(ProfileAccount account) async {
     state = state.copyWith(
       isSaving: true,
       clearError: true,
@@ -35,11 +35,13 @@ class UserProfileNotifier extends Notifier<UserProfileState> {
           isSaving: false,
           successMessage: 'Account information saved successfully.',
         );
+        return true;
       case Failure<ProfileAccount>():
         state = state.copyWith(
           isSaving: false,
           error: result.error.friendlyMessage,
         );
+        return false;
     }
   }
 

@@ -34,7 +34,7 @@ const List<String> _kTimezones = [
 Future<void> showEditProfileDialog(
   BuildContext context,
   ProfileAccount account,
-  ValueChanged<ProfileAccount> onSave,
+  Future<bool> Function(ProfileAccount) onSave,
 ) async {
   await showDialog<void>(
     context: context,
@@ -46,7 +46,7 @@ class _EditProfileDialog extends StatefulWidget {
   const _EditProfileDialog({required this.account, required this.onSave});
 
   final ProfileAccount account;
-  final ValueChanged<ProfileAccount> onSave;
+  final Future<bool> Function(ProfileAccount) onSave;
 
   @override
   State<_EditProfileDialog> createState() => _EditProfileDialogState();
@@ -62,6 +62,8 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
   late final TextEditingController pronunciationCtrl;
 
   final formKey = GlobalKey<FormState>();
+  bool _isSaving = false;
+  String? _saveError;
 
   late String selectedTimezone;
   late String selectedCountry;
@@ -98,7 +100,49 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(
+    canPop: !_isSaving,
+    child: ExcludeFocus(
+      excluding: _isSaving,
+      child: IgnorePointer(ignoring: _isSaving, child: _buildDialog(context)),
+    ),
+  );
+
+  Future<void> _save() async {
+    if (_isSaving || !(formKey.currentState?.validate() ?? false)) return;
+    final updated = widget.account.copyWith(
+      name: nameCtrl.text.trim(),
+      displayName: displayNameCtrl.text.trim(),
+      username: usernameCtrl.text.trim(),
+      email: emailCtrl.text.trim(),
+      phoneNumber: phoneCtrl.text.trim(),
+      title: titleCtrl.text.trim(),
+      namePronunciation: pronunciationCtrl.text.trim(),
+      timezone: selectedTimezone,
+      country: selectedCountry,
+    );
+    setState(() {
+      _isSaving = true;
+      _saveError = null;
+    });
+    var saved = false;
+    try {
+      saved = await widget.onSave(updated);
+    } catch (_) {
+      // A failed request must leave the draft available for retry.
+    }
+    if (!mounted) return;
+    if (saved) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() {
+      _isSaving = false;
+      _saveError = 'Could not save your changes. Please try again.';
+    });
+  }
+
+  Widget _buildDialog(BuildContext context) {
     final colors = context.colors;
 
     return Dialog(
@@ -126,7 +170,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isSaving ? null : () => Navigator.pop(context),
                     icon: Icon(Icons.close, color: colors.textHint),
                   ),
                 ],
@@ -461,6 +505,21 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
               ),
             ),
 
+            if (_saveError != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _saveError!,
+                    style: TextStyle(color: colors.error),
+                  ),
+                ),
+              ),
+
             // Footer
             Divider(height: 0, color: colors.divider),
             Padding(
@@ -469,7 +528,7 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isSaving ? null : () => Navigator.pop(context),
                     child: Text(
                       'Cancel',
                       style: TextStyle(color: colors.textPrimary),
@@ -480,24 +539,8 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                     label: 'Save Changes',
                     expand: false,
                     height: 40,
-                    onPressed: () {
-                      if (formKey.currentState?.validate() ?? false) {
-                        widget.onSave(
-                          widget.account.copyWith(
-                            name: nameCtrl.text.trim(),
-                            displayName: displayNameCtrl.text.trim(),
-                            username: usernameCtrl.text.trim(),
-                            email: emailCtrl.text.trim(),
-                            phoneNumber: phoneCtrl.text.trim(),
-                            title: titleCtrl.text.trim(),
-                            namePronunciation: pronunciationCtrl.text.trim(),
-                            timezone: selectedTimezone,
-                            country: selectedCountry,
-                          ),
-                        );
-                        Navigator.pop(context);
-                      }
-                    },
+                    loading: _isSaving,
+                    onPressed: _save,
                   ),
                 ],
               ),

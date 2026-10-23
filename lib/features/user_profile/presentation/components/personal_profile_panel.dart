@@ -244,7 +244,9 @@ class PersonalProfilePanel extends ConsumerWidget {
     ProfileAccount account,
   ) {
     showEditProfileDialog(context, account, (updated) {
-      ref.read(userProfileNotifierProvider.notifier).updateAccount(updated);
+      return ref
+          .read(userProfileNotifierProvider.notifier)
+          .updateAccount(updated);
     });
   }
 }
