@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:zedu/core/core.dart';
 import 'package:zedu/features/features.dart';
@@ -255,44 +256,55 @@ class AuthNotifier extends Notifier<AuthState> {
       await launchUrl(authUrl, mode: LaunchMode.externalApplication);
 
       // 3. Wait for Google's redirect containing the authorization code
+      // with a 30-second timeout to prevent hanging if user closes browser
       String? grantCode;
-      await for (final request in server) {
-        grantCode = request.uri.queryParameters['code'];
+      final grantCodeFuture = () async {
+        await for (final request in server) {
+          grantCode = request.uri.queryParameters['code'];
 
-        // Return a clean success page to the user in their browser
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.html
-          ..write('''
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <title>Authentication Successful</title>
-              <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; text-align: center; padding: 50px; background-color: #f9f9f9; }
-                .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: inline-block; max-width: 400px; }
-                h1 { color: #4CAF50; margin-top: 0; }
-                p { color: #666; font-size: 16px; }
-              </style>
-            </head>
-            <body>
-              <div class="card">
-                <h1>Sign In Successful!</h1>
-                <p>You have successfully authenticated with Zedu. You can now close this tab and return to the application.</p>
-              </div>
-            </body>
-            </html>
-          ''');
-        await request.response.close();
-        break;
+          // Return a clean success page to the user in their browser
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.html
+            ..write('''
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>Authentication Successful</title>
+                <style>
+                  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; text-align: center; padding: 50px; background-color: #f9f9f9; }
+                  .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: inline-block; max-width: 400px; }
+                  h1 { color: #4CAF50; margin-top: 0; }
+                  p { color: #666; font-size: 16px; }
+                </style>
+              </head>
+              <body>
+                <div class="card">
+                  <h1>Sign In Successful!</h1>
+                  <p>You have successfully authenticated with Zedu. You can now close this tab and return to the application.</p>
+                </div>
+              </body>
+              </html>
+            ''');
+          await request.response.close();
+          break;
+        }
+      };
+
+      try {
+        await grantCodeFuture().timeout(const Duration(seconds: 30), onTimeout: () {
+          AppLogger.w('Google Sign-In timed out after 30 seconds', tag: _tag);
+        });
+      } on TimeoutException catch (_) {
+        // Timeout handled below
       }
 
       await server.close();
       server = null;
 
       if (grantCode == null) {
-        AppLogger.w('Google Sign-In aborted or code not found', tag: _tag);
-        state = state.copyWith(isLoading: false);
+        AppLogger.w('Google Sign-In aborted, timed out, or code not found', tag: _tag);
+        state = state.copyWith(isLoading: false, error: 'Google Sign-In timed out. Please try again.');
         return;
       }
 
