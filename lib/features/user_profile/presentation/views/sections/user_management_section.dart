@@ -68,8 +68,8 @@ class _UserManagementSectionState extends State<UserManagementSection> {
     final startIndex = (currentPage - 1) * _pageSize;
     final paginatedMembers = filtered.skip(startIndex).take(_pageSize).toList();
 
-    // One width shared by both tabs so they are exactly equal and compact.
-    final tabWidth = _TabMetrics.sharedWidth(context, const [
+    // One layout shared by both tabs so they are exactly equal and compact.
+    final tabLayout = _TabMetrics.resolve(context, const [
       'Members',
       'Invites',
     ]);
@@ -94,7 +94,8 @@ class _UserManagementSectionState extends State<UserManagementSection> {
           children: [
             _TabLabel(
               label: 'Members',
-              width: tabWidth,
+              width: tabLayout.width,
+              headerHeight: tabLayout.headerHeight,
               count: widget.members.length,
               active: _tab == _UserManagementTab.members,
               onTap: () => _selectTab(_UserManagementTab.members),
@@ -102,7 +103,8 @@ class _UserManagementSectionState extends State<UserManagementSection> {
             const SizedBox(width: _TabMetrics.tabSpacing),
             _TabLabel(
               label: 'Invites',
-              width: tabWidth,
+              width: tabLayout.width,
+              headerHeight: tabLayout.headerHeight,
               count: widget.invitesCount,
               active: _tab == _UserManagementTab.invites,
               onTap: () => _selectTab(_UserManagementTab.invites),
@@ -396,50 +398,99 @@ class _TabMetrics {
   /// changing counts never shifts the table below the tab strip.
   static const double underlineHeight = 3;
 
-  /// Fixed badge width so a changing count never resizes the tab strip.
-  static const double badgeWidth = 34;
+  /// Badge text style. Shared with [_TabMetrics.resolve] so the reserved badge
+  /// width always matches what actually renders.
+  static const double badgeFontSize = 10;
+  static const double badgeLineHeight = 1.3;
+
+  /// Symmetric padding around the badge count. It is intentionally small so a
+  /// single digit reads as a compact pill instead of a wide, padded block.
+  static const double badgeHorizontalPadding = 5;
+  static const double badgeVerticalPadding = 2;
+
+  /// Widest count the badge must accommodate without clipping or resizing the
+  /// tab. The shared width reserves room for this, so 0–999 are all safe.
+  static const String badgeMaxCount = '999';
 
   /// Gap between the two tabs.
   static const double tabSpacing = 24;
 
-  /// Horizontal padding applied symmetrically to each tab.
+  /// Padding applied symmetrically to each tab. Only the horizontal component
+  /// contributes to the shared width; the vertical component contributes to
+  /// the shared header height so tab content sits centred in it.
   static const EdgeInsets tabPadding = EdgeInsets.symmetric(
     horizontal: 4,
     vertical: 6,
   );
 
-  /// Shared tab width: the wider of [labels] measured with the selected
-  /// (semibold) style, plus the label→badge gap, the badge and the padding.
-  /// Measuring once and applying it to both tabs keeps them exactly equal and
-  /// compact, independent of label length, count or window size.
-  static double sharedWidth(BuildContext context, List<String> labels) {
-    final style = context.textTheme.bodyMedium?.copyWith(
+  /// Resolves the geometry shared by both tabs.
+  ///
+  /// [width] is the wider of [labels] measured with the selected (semibold)
+  /// style, plus the label→badge gap, the widest badge and the tab padding.
+  /// [headerHeight] is the taller of the label and badge boxes plus the tab's
+  /// vertical padding, so both tabs get an identical content area and their
+  /// label + badge can be vertically centred in it.
+  static _TabLayout resolve(BuildContext context, List<String> labels) {
+    final labelStyle = context.textTheme.bodyMedium?.copyWith(
       fontWeight: FontWeight.w600,
+    );
+    final badgeStyle = context.textTheme.labelSmall?.copyWith(
+      fontSize: badgeFontSize,
+      height: badgeLineHeight,
     );
     final textDirection = Directionality.of(context);
     final textScaler = MediaQuery.textScalerOf(context);
 
-    var widestLabel = 0.0;
-    for (final label in labels) {
+    TextPainter measure(String text, TextStyle? style) {
       final painter = TextPainter(
-        text: TextSpan(text: label, style: style),
+        text: TextSpan(text: text, style: style),
         textDirection: textDirection,
         textScaler: textScaler,
         maxLines: 1,
       )..layout();
+      return painter;
+    }
+
+    var widestLabel = 0.0;
+    var labelHeight = 0.0;
+    for (final label in labels) {
+      final painter = measure(label, labelStyle);
       if (painter.width > widestLabel) widestLabel = painter.width;
+      if (painter.height > labelHeight) labelHeight = painter.height;
       painter.dispose();
     }
 
-    return (widestLabel + labelToBadge + badgeWidth + tabPadding.horizontal)
-        .ceilToDouble();
+    final badge = measure(badgeMaxCount, badgeStyle);
+    final badgeWidth = badge.width + badgeHorizontalPadding * 2;
+    final badgeHeight = badge.height + badgeVerticalPadding * 2;
+    badge.dispose();
+
+    final contentHeight = labelHeight > badgeHeight ? labelHeight : badgeHeight;
+
+    return _TabLayout(
+      width: (widestLabel + labelToBadge + badgeWidth + tabPadding.horizontal)
+          .ceilToDouble(),
+      headerHeight: contentHeight + tabPadding.vertical,
+    );
   }
+}
+
+/// Geometry resolved once per build and applied to both tabs.
+class _TabLayout {
+  const _TabLayout({required this.width, required this.headerHeight});
+
+  /// Shared outer width of each tab.
+  final double width;
+
+  /// Shared height of the label + badge content area (tab padding included).
+  final double headerHeight;
 }
 
 class _TabLabel extends StatelessWidget {
   const _TabLabel({
     required this.label,
     required this.width,
+    required this.headerHeight,
     required this.count,
     required this.active,
     this.onTap,
@@ -447,6 +498,7 @@ class _TabLabel extends StatelessWidget {
 
   final String label;
   final double width;
+  final double headerHeight;
   final int count;
   final bool active;
   final VoidCallback? onTap;
@@ -460,58 +512,69 @@ class _TabLabel extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
-      // Both tabs receive the same width, so they stay identical regardless of
-      // label length or count. The stretched underline spans that full width.
+      // Both tabs receive the same width and header height, so they stay
+      // identical regardless of label length, count or active state. The
+      // underline stays anchored to the bottom and spans the full width.
       child: SizedBox(
         width: width,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: _TabMetrics.tabPadding,
-              child: Row(
-                mainAxisSize: MainAxisSize.max,
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    label,
-                    key: Key('tab_label_$label'),
-                    style: context.textTheme.bodyMedium?.copyWith(
-                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                      color: labelColor,
-                    ),
-                  ),
-                  const SizedBox(width: _TabMetrics.labelToBadge),
-                  // The badge keeps a constant line height and its content is
-                  // centred so the pill always sits on the label's midline.
-                  // Its width is fixed so count changes cannot resize the tab.
-                  Container(
-                    key: Key('tab_badge_$label'),
-                    width: _TabMetrics.badgeWidth,
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: active
-                          ? context.colors.primaryBg
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      count.toString(),
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.fade,
-                      textAlign: TextAlign.center,
-                      style: context.textTheme.labelSmall?.copyWith(
+            SizedBox(
+              height: headerHeight,
+              // Centering the whole label + badge row inside the shared header
+              // keeps their vertical geometry identical on both tabs.
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      key: Key('tab_label_$label'),
+                      style: context.textTheme.bodyMedium?.copyWith(
+                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                         color: labelColor,
-                        fontSize: 10,
-                        height: 1.3,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: _TabMetrics.labelToBadge),
+                    // The badge hugs its count with symmetric padding, so a
+                    // single digit stays compact. The shared tab width already
+                    // reserves room for the widest count, so growing from 0 to
+                    // 999 never clips the badge or resizes the tab. A
+                    // DecoratedBox (rather than a Container with alignment) is
+                    // used so the pill keeps its intrinsic height instead of
+                    // stretching to fill the header.
+                    DecoratedBox(
+                      key: Key('tab_badge_$label'),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? context.colors.primaryBg
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: _TabMetrics.badgeHorizontalPadding,
+                          vertical: _TabMetrics.badgeVerticalPadding,
+                        ),
+                        child: Text(
+                          count.toString(),
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.fade,
+                          textAlign: TextAlign.center,
+                          style: context.textTheme.labelSmall?.copyWith(
+                            color: labelColor,
+                            fontSize: _TabMetrics.badgeFontSize,
+                            height: _TabMetrics.badgeLineHeight,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: _TabMetrics.labelToUnderline),

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:zedu/core/core.dart';
 import 'package:zedu/features/features.dart';
 import '../../../../../../helpers/helpers.dart';
@@ -308,6 +310,29 @@ void main() {
     // keyed by its tab so the geometry can be measured directly.
     Finder badgeFor(String label) => find.byKey(Key('tab_badge_$label'));
     Finder labelFor(String label) => find.byKey(Key('tab_label_$label'));
+    Finder underlineFor(String label) =>
+        find.byKey(Key('tab_underline_$label'));
+    Finder tabFor(String label) =>
+        find.ancestor(of: badgeFor(label), matching: find.byType(InkWell));
+    Finder countFor(String label) =>
+        find.descendant(of: badgeFor(label), matching: find.byType(Text));
+
+    /// Distance between the tab content and the top/bottom of the shared
+    /// header area (everything above the underline gap).
+    ({double top, double bottom}) headerGaps(
+      WidgetTester tester,
+      String label,
+    ) {
+      final tab = tester.getRect(tabFor(label));
+      final underline = tester.getRect(underlineFor(label));
+      final labelRect = tester.getRect(labelFor(label));
+      final badgeRect = tester.getRect(badgeFor(label));
+      final contentTop = math.min(labelRect.top, badgeRect.top);
+      final contentBottom = math.max(labelRect.bottom, badgeRect.bottom);
+      // The underline is preceded by a fixed 10px gap.
+      final headerBottom = underline.top - 10;
+      return (top: contentTop - tab.top, bottom: headerBottom - contentBottom);
+    }
 
     testWidgets('keeps both tab labels on the same baseline', (tester) async {
       await pumpSection(tester, members: createMembers(3));
@@ -391,31 +416,173 @@ void main() {
       );
     });
 
-    testWidgets('uses one compact width derived from the longer label', (
+    testWidgets('uses one compact width for the longer label and widest badge', (
       tester,
     ) async {
-      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+      await pumpSection(tester, members: createMembers(3), invitesCount: 999);
 
-      final membersTab = tester.getRect(
-        find.ancestor(of: badgeFor('Members'), matching: find.byType(InkWell)),
+      final membersTab = tester.getRect(tabFor('Members'));
+      final invitesTab = tester.getRect(tabFor('Invites'));
+      final labelWidth = math.max(
+        tester.getRect(labelFor('Members')).width,
+        tester.getRect(labelFor('Invites')).width,
       );
-      final invitesTab = tester.getRect(
-        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
-      );
-      final longerLabel = tester.getRect(labelFor('Members'));
-      final badge = tester.getRect(badgeFor('Members'));
+      // The 999 badge is the widest the badge can get, and therefore the width
+      // the shared tab geometry reserves.
+      final widestBadge = tester.getRect(badgeFor('Invites'));
 
       expect(
         invitesTab.width,
         moreOrLessEquals(membersTab.width, epsilon: 0.01),
       );
 
-      // Longer label + label→badge gap (8) + fixed badge (34) + 4px padding on
-      // each side. Anything larger would be wasted space.
+      // Longer label + label→badge gap (8) + widest badge + 4px padding on each
+      // side, rounded up to a whole pixel. Anything larger would be wasted
+      // space.
       expect(
         membersTab.width,
-        moreOrLessEquals(longerLabel.width + 8 + badge.width + 8, epsilon: 0.5),
+        moreOrLessEquals(
+          (labelWidth + 8 + widestBadge.width + 8).ceilToDouble(),
+          epsilon: 0.01,
+        ),
         reason: 'the shared width must be compact, not padded out',
+      );
+    });
+
+    testWidgets('badges hug their count with symmetric padding', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(7), invitesCount: 3);
+
+      final membersBadge = tester.getRect(badgeFor('Members'));
+      final invitesBadge = tester.getRect(badgeFor('Invites'));
+      final membersCount = tester.getRect(countFor('Members'));
+      final invitesCount = tester.getRect(countFor('Invites'));
+
+      expect(
+        membersBadge.width,
+        moreOrLessEquals(membersCount.width + 5 + 5, epsilon: 0.5),
+        reason: 'the badge must use symmetric 5px horizontal padding',
+      );
+      expect(
+        membersBadge.height,
+        moreOrLessEquals(membersCount.height + 2 + 2, epsilon: 0.5),
+        reason: 'the badge must use symmetric 2px vertical padding',
+      );
+      expect(
+        membersCount.center.dx,
+        moreOrLessEquals(membersBadge.center.dx, epsilon: 0.01),
+        reason: 'the count must be horizontally centred in the pill',
+      );
+      expect(
+        membersCount.center.dy,
+        moreOrLessEquals(membersBadge.center.dy, epsilon: 0.01),
+        reason: 'the count must be vertically centred in the pill',
+      );
+      expect(
+        invitesCount.center.dx,
+        moreOrLessEquals(invitesBadge.center.dx, epsilon: 0.01),
+      );
+      expect(
+        membersBadge.width,
+        lessThan(30),
+        reason: 'a single digit must not sit in a wide, padded block',
+      );
+    });
+
+    testWidgets('keeps counts 0–999 readable without resizing the tabs', (
+      tester,
+    ) async {
+      double? sharedWidth;
+      for (final count in [0, 7, 42, 999]) {
+        await pumpSection(
+          tester,
+          members: createMembers(2),
+          invitesCount: count,
+        );
+
+        final invitesTab = tester.getRect(tabFor('Invites'));
+        final badge = tester.getRect(badgeFor('Invites'));
+        final digits = tester.getRect(countFor('Invites'));
+
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'count $count overflows',
+        );
+        expect(
+          digits.left,
+          greaterThanOrEqualTo(badge.left - 0.01),
+          reason: '$count must not be clipped on the left',
+        );
+        expect(
+          digits.right,
+          lessThanOrEqualTo(badge.right + 0.01),
+          reason: '$count must not be clipped on the right',
+        );
+        expect(
+          badge.right,
+          lessThanOrEqualTo(invitesTab.right + 0.01),
+          reason: '$count must fit inside the reserved tab width',
+        );
+        sharedWidth ??= invitesTab.width;
+        expect(
+          invitesTab.width,
+          moreOrLessEquals(sharedWidth, epsilon: 0.01),
+          reason: 'count $count must not resize the tab',
+        );
+      }
+    });
+
+    testWidgets('centres label and badge in an identical shared header', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+
+      final membersTab = tester.getRect(tabFor('Members'));
+      final invitesTab = tester.getRect(tabFor('Invites'));
+      final membersGaps = headerGaps(tester, 'Members');
+      final invitesGaps = headerGaps(tester, 'Invites');
+
+      expect(
+        membersTab.height,
+        moreOrLessEquals(invitesTab.height, epsilon: 0.01),
+        reason: 'active and inactive tabs must share one height',
+      );
+      expect(
+        membersGaps.top,
+        moreOrLessEquals(membersGaps.bottom, epsilon: 0.5),
+        reason: 'Members content must be vertically centred in the header',
+      );
+      expect(
+        invitesGaps.top,
+        moreOrLessEquals(invitesGaps.bottom, epsilon: 0.5),
+        reason: 'Invites content must be vertically centred in the header',
+      );
+      expect(
+        membersGaps.top,
+        moreOrLessEquals(invitesGaps.top, epsilon: 0.5),
+        reason: 'both tabs must share identical vertical geometry',
+      );
+      expect(
+        tester.getRect(labelFor('Members')).top,
+        moreOrLessEquals(tester.getRect(labelFor('Invites')).top, epsilon: 0.5),
+      );
+      expect(
+        tester.getRect(badgeFor('Members')).top,
+        moreOrLessEquals(tester.getRect(badgeFor('Invites')).top, epsilon: 0.5),
+      );
+
+      // The underline is the last child, so it is flush with the tab bottom.
+      expect(
+        tester.getRect(underlineFor('Members')).bottom,
+        moreOrLessEquals(membersTab.bottom, epsilon: 0.01),
+        reason: 'the underline must be anchored to the tab bottom',
+      );
+      expect(
+        tester.getRect(underlineFor('Invites')).bottom,
+        moreOrLessEquals(invitesTab.bottom, epsilon: 0.01),
+        reason: 'the inactive tab reserves the same bottom-anchored space',
       );
     });
 
@@ -450,7 +617,8 @@ void main() {
       await pumpSection(tester, members: createMembers(3), invitesCount: 2);
 
       BoxDecoration badgeDecoration(String label) =>
-          tester.widget<Container>(badgeFor(label)).decoration as BoxDecoration;
+          tester.widget<DecoratedBox>(badgeFor(label)).decoration
+              as BoxDecoration;
 
       expect(
         badgeDecoration('Invites').color,
@@ -465,9 +633,6 @@ void main() {
         reason: 'the active badge uses the theme surface tint',
       );
     });
-
-    Finder underlineFor(String label) =>
-        find.byKey(Key('tab_underline_$label'));
 
     Color underlineColor(WidgetTester tester, String label) =>
         (tester.widget<Container>(underlineFor(label)).decoration
@@ -656,30 +821,61 @@ void main() {
     ) async {
       await pumpSection(tester, members: createMembers(3), invitesCount: 2);
 
-      final before = tester.getRect(labelFor('Members'));
+      final membersTabBefore = tester.getRect(tabFor('Members'));
+      final invitesTabBefore = tester.getRect(tabFor('Invites'));
+      final labelBefore = tester.getRect(labelFor('Members'));
+      final badgeBefore = tester.getRect(badgeFor('Members'));
       final underlineBefore = tester.getRect(underlineFor('Members'));
-      final invitesBefore = tester.getRect(
-        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
-      );
+      final gapsBefore = headerGaps(tester, 'Members');
 
       await tester.tap(find.text('Invites'));
       await tester.pumpAndSettle();
 
-      final after = tester.getRect(labelFor('Members'));
+      final membersTabAfter = tester.getRect(tabFor('Members'));
+      final invitesTabAfter = tester.getRect(tabFor('Invites'));
+      final labelAfter = tester.getRect(labelFor('Members'));
+      final badgeAfter = tester.getRect(badgeFor('Members'));
       final underlineAfter = tester.getRect(underlineFor('Members'));
-      final invitesAfter = tester.getRect(
-        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      final gapsAfter = headerGaps(tester, 'Members');
+
+      for (final (before, after) in [
+        (membersTabBefore, membersTabAfter),
+        (invitesTabBefore, invitesTabAfter),
+      ]) {
+        expect(
+          after.left,
+          moreOrLessEquals(before.left, epsilon: 0.5),
+          reason: 'tabs must not jump horizontally on switch',
+        );
+        expect(
+          after.top,
+          moreOrLessEquals(before.top, epsilon: 0.5),
+          reason: 'tabs must not jump vertically on switch',
+        );
+        expect(
+          after.width,
+          moreOrLessEquals(before.width, epsilon: 0.01),
+          reason: 'tab widths must not change on switch',
+        );
+        expect(
+          after.height,
+          moreOrLessEquals(before.height, epsilon: 0.01),
+          reason: 'tab heights must not change on switch',
+        );
+      }
+      expect(
+        labelAfter.top,
+        moreOrLessEquals(labelBefore.top, epsilon: 0.5),
+        reason: 'label vertical geometry must be stable on switch',
       );
       expect(
-        after.top,
-        moreOrLessEquals(before.top, epsilon: 0.5),
-        reason: 'tabs must not move when the active tab changes',
+        badgeAfter.top,
+        moreOrLessEquals(badgeBefore.top, epsilon: 0.5),
+        reason: 'badge vertical geometry must be stable on switch',
       );
-      expect(after.left, moreOrLessEquals(before.left, epsilon: 0.5));
       expect(
-        invitesAfter.left,
-        moreOrLessEquals(invitesBefore.left, epsilon: 0.5),
-        reason: 'the neighbouring tab must not jump horizontally',
+        badgeAfter.height,
+        moreOrLessEquals(badgeBefore.height, epsilon: 0.01),
       );
       expect(
         underlineAfter.top,
@@ -690,31 +886,42 @@ void main() {
         underlineAfter.width,
         moreOrLessEquals(underlineBefore.width, epsilon: 0.5),
       );
+      expect(
+        gapsAfter.top,
+        moreOrLessEquals(gapsBefore.top, epsilon: 0.5),
+        reason: 'content must stay centred when the active tab changes',
+      );
+      expect(gapsAfter.top, moreOrLessEquals(gapsAfter.bottom, epsilon: 0.5));
     });
 
     testWidgets('does not shift the tab strip when counts change', (
       tester,
     ) async {
       await pumpSection(tester, members: createMembers(3), invitesCount: 0);
-      final smallCount = tester.getRect(
-        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
-      );
+      final smallTab = tester.getRect(tabFor('Invites'));
       final smallUnderline = tester.getRect(underlineFor('Invites'));
+      final smallGaps = headerGaps(tester, 'Invites');
 
       await pumpSection(tester, members: createMembers(150), invitesCount: 999);
-      final largeCount = tester.getRect(
-        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
-      );
+      final largeTab = tester.getRect(tabFor('Invites'));
       final largeUnderline = tester.getRect(underlineFor('Invites'));
+      final largeGaps = headerGaps(tester, 'Invites');
 
       expect(
-        largeCount.top,
-        moreOrLessEquals(smallCount.top, epsilon: 0.5),
+        largeTab.top,
+        moreOrLessEquals(smallTab.top, epsilon: 0.5),
         reason: 'wider count badges must not move the tab strip',
       );
+      expect(largeTab.left, moreOrLessEquals(smallTab.left, epsilon: 0.5));
       expect(
-        largeCount.height,
-        moreOrLessEquals(smallCount.height, epsilon: 0.5),
+        largeTab.width,
+        moreOrLessEquals(smallTab.width, epsilon: 0.01),
+        reason: 'a changing count must not resize the tab',
+      );
+      expect(
+        largeTab.height,
+        moreOrLessEquals(smallTab.height, epsilon: 0.01),
+        reason: 'a changing count must not change the tab height',
       );
       expect(
         largeUnderline.top,
@@ -725,11 +932,15 @@ void main() {
         largeUnderline.width,
         moreOrLessEquals(smallUnderline.width, epsilon: 0.5),
       );
+      expect(
+        largeGaps.top,
+        moreOrLessEquals(smallGaps.top, epsilon: 0.5),
+        reason: 'content must stay vertically centred when counts change',
+      );
+      expect(largeGaps.top, moreOrLessEquals(largeGaps.bottom, epsilon: 0.5));
     });
 
-    testWidgets('keeps equal widths and spacing across window sizes', (
-      tester,
-    ) async {
+    testWidgets('keeps equal geometry across window sizes', (tester) async {
       for (final size in const [
         Size(900, 700),
         Size(1000, 800),
@@ -740,23 +951,19 @@ void main() {
 
         final membersLabel = tester.getRect(labelFor('Members'));
         final invitesLabel = tester.getRect(labelFor('Invites'));
-        final membersTab = tester.getRect(
-          find.ancestor(
-            of: badgeFor('Members'),
-            matching: find.byType(InkWell),
-          ),
-        );
-        final invitesTab = tester.getRect(
-          find.ancestor(
-            of: badgeFor('Invites'),
-            matching: find.byType(InkWell),
-          ),
-        );
+        final membersTab = tester.getRect(tabFor('Members'));
+        final invitesTab = tester.getRect(tabFor('Invites'));
+        final gaps = headerGaps(tester, 'Members');
 
         expect(
           membersTab.width,
           moreOrLessEquals(invitesTab.width, epsilon: 0.01),
           reason: 'tabs must stay identically wide at $size',
+        );
+        expect(
+          membersTab.height,
+          moreOrLessEquals(invitesTab.height, epsilon: 0.01),
+          reason: 'tabs must stay identically tall at $size',
         );
         expect(
           invitesTab.left - membersTab.right,
@@ -772,6 +979,11 @@ void main() {
           tester.getRect(badgeFor('Members')).center.dy,
           moreOrLessEquals(membersLabel.center.dy, epsilon: 1.0),
           reason: 'the badge must stay centred at $size',
+        );
+        expect(
+          gaps.top,
+          moreOrLessEquals(gaps.bottom, epsilon: 0.5),
+          reason: 'tab content must stay vertically centred at $size',
         );
         expect(
           underlineColor(tester, 'Members'),
@@ -792,6 +1004,11 @@ void main() {
           tester.getRect(underlineFor('Invites')).width,
           moreOrLessEquals(membersTab.width, epsilon: 0.5),
           reason: 'the inactive tab reserves the same width at $size',
+        );
+        expect(
+          tester.getRect(underlineFor('Members')).bottom,
+          moreOrLessEquals(membersTab.bottom, epsilon: 0.01),
+          reason: 'the underline must stay anchored to the tab bottom at $size',
         );
       }
     });
