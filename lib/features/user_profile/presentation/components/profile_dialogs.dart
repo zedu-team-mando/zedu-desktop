@@ -475,6 +475,7 @@ Future<void> showEditMemberDialog(
   ValueChanged<TeamMember> onUpdate,
 ) async {
   String role = member.role;
+  const supportedRoles = ['Administrator', 'Manager', 'User'];
 
   await showDialog<void>(
     context: context,
@@ -504,6 +505,7 @@ Future<void> showEditMemberDialog(
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: role,
+                isExpanded: true,
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(6),
@@ -513,13 +515,21 @@ Future<void> showEditMemberDialog(
                     vertical: 14,
                   ),
                 ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'Administrator',
-                    child: Text('Administrator'),
-                  ),
-                  DropdownMenuItem(value: 'Manager', child: Text('Manager')),
-                  DropdownMenuItem(value: 'User', child: Text('User')),
+                items: [
+                  if (!supportedRoles.contains(member.role))
+                    DropdownMenuItem(
+                      value: member.role,
+                      enabled: false,
+                      child: Text(
+                        '${member.role.isEmpty ? 'Unspecified' : member.role} (current role)',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  for (final supportedRole in supportedRoles)
+                    DropdownMenuItem(
+                      value: supportedRole,
+                      child: Text(supportedRole),
+                    ),
                 ],
                 onChanged: (v) => setDialogState(() => role = v ?? member.role),
               ),
