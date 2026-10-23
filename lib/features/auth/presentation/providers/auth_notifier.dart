@@ -59,9 +59,10 @@ class AuthNotifier extends Notifier<AuthState> {
         );
       case Failure<AuthSession>():
         AppLogger.w('Login rejected — ${result.error.message}', tag: _tag);
+        // Use generic error message to prevent user enumeration
         state = state.copyWith(
           isLoading: false,
-          error: result.error.friendlyMessage,
+          error: 'Invalid email or password. Please check your credentials and try again.',
         );
     }
   }
