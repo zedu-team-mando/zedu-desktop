@@ -386,23 +386,201 @@ void main() {
       expect(membersTab.top, moreOrLessEquals(invitesTab.top, epsilon: 0.5));
     });
 
+    Finder underlineFor(String label) =>
+        find.byKey(Key('tab_underline_$label'));
+
+    Color underlineColor(WidgetTester tester, String label) =>
+        (tester.widget<Container>(underlineFor(label)).decoration
+                as BoxDecoration)
+            .color!;
+
+    /// Resolves the design-system primary colour from the widget's own theme
+    /// context, so expectations follow the theme token instead of a literal.
+    Color themePrimary(WidgetTester tester) =>
+        tester.element(find.byType(UserManagementSection)).colors.primary;
+
+    testWidgets(
+      'paints a clearly visible themed underline beneath the active tab only',
+      (tester) async {
+        await pumpSection(tester, members: createMembers(3));
+
+        final activeColor = themePrimary(tester);
+        expect(
+          activeColor,
+          equals(AppPalette.light.primary),
+          reason: 'the test must resolve the real theme token',
+        );
+        expect(
+          underlineColor(tester, 'Members'),
+          equals(activeColor),
+          reason: 'the selected tab must use the theme primary colour',
+        );
+        expect(
+          underlineColor(tester, 'Invites'),
+          equals(Colors.transparent),
+          reason: 'the inactive tab must not paint an underline',
+        );
+
+        final membersUnderline = tester.getRect(underlineFor('Members'));
+        final invitesUnderline = tester.getRect(underlineFor('Invites'));
+        expect(
+          membersUnderline.width,
+          greaterThan(0),
+          reason: 'the underline must have a visible width',
+        );
+        expect(
+          membersUnderline.height,
+          moreOrLessEquals(3),
+          reason: 'the underline must have a visible thickness',
+        );
+        expect(
+          membersUnderline.width,
+          moreOrLessEquals(invitesUnderline.width),
+          reason: 'both tabs must reserve the same underline width',
+        );
+      },
+    );
+
+    testWidgets('resolves the underline colour from the theme, not a literal', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            // A different theme configuration: dark brightness on top of the
+            // app theme. The palette extension is the single source of the
+            // underline colour, so the indicator must still resolve through it.
+            theme: AppTheme.light.copyWith(brightness: Brightness.dark),
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: UserManagementSection(
+                  members: createMembers(3),
+                  isSaving: false,
+                  onInvite: ({required email, required role}) async {},
+                  onUpdate: (_) {},
+                  onRemove: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        underlineColor(tester, 'Members'),
+        equals(themePrimary(tester)),
+        reason: 'the indicator must track the themed palette token',
+      );
+      expect(
+        underlineColor(tester, 'Members'),
+        equals(AppPalette.light.primary),
+        reason: 'the design system currently exposes one primary token',
+      );
+      expect(underlineColor(tester, 'Invites'), equals(Colors.transparent));
+    });
+
+    testWidgets('underlines the tab that is selected via its geometry', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+
+      final membersTab = tester.getRect(
+        find.ancestor(of: badgeFor('Members'), matching: find.byType(InkWell)),
+      );
+      final membersUnderline = tester.getRect(underlineFor('Members'));
+
+      expect(
+        membersUnderline.left,
+        moreOrLessEquals(membersTab.left, epsilon: 0.5),
+        reason: 'the underline must start at the selected tab edge',
+      );
+      expect(
+        membersUnderline.right,
+        moreOrLessEquals(membersTab.right, epsilon: 0.5),
+        reason: 'the underline must span the selected tab',
+      );
+      expect(
+        membersUnderline.top,
+        greaterThan(membersTab.center.dy),
+        reason: 'the underline must sit beneath the label, not above it',
+      );
+    });
+
+    testWidgets('moves the themed underline to the newly selected tab', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+
+      final membersUnderlineBefore = tester.getRect(underlineFor('Members'));
+      final invitesUnderlineBefore = tester.getRect(underlineFor('Invites'));
+      expect(
+        membersUnderlineBefore.center.dx,
+        lessThan(invitesUnderlineBefore.center.dx),
+      );
+      expect(underlineColor(tester, 'Members'), equals(themePrimary(tester)));
+      expect(underlineColor(tester, 'Invites'), equals(Colors.transparent));
+
+      await tester.tap(find.text('Invites'));
+      await tester.pumpAndSettle();
+
+      expect(
+        underlineColor(tester, 'Members'),
+        equals(Colors.transparent),
+        reason: 'the previously selected tab loses its underline',
+      );
+      expect(
+        underlineColor(tester, 'Invites'),
+        equals(themePrimary(tester)),
+        reason: 'the newly selected tab gains the themed underline',
+      );
+
+      final invitesUnderlineAfter = tester.getRect(underlineFor('Invites'));
+      expect(
+        invitesUnderlineAfter.center.dx,
+        greaterThan(membersUnderlineBefore.center.dx),
+        reason: 'the underline must now be drawn further right',
+      );
+      expect(
+        invitesUnderlineAfter.center.dy,
+        moreOrLessEquals(membersUnderlineBefore.center.dy, epsilon: 0.5),
+        reason: 'the underline must not change vertical position',
+      );
+    });
+
     testWidgets('does not shift the tab strip when switching tabs', (
       tester,
     ) async {
       await pumpSection(tester, members: createMembers(3), invitesCount: 2);
 
       final before = tester.getRect(labelFor('Members'));
+      final underlineBefore = tester.getRect(underlineFor('Members'));
 
       await tester.tap(find.text('Invites'));
       await tester.pumpAndSettle();
 
       final after = tester.getRect(labelFor('Members'));
+      final underlineAfter = tester.getRect(underlineFor('Members'));
       expect(
         after.top,
         moreOrLessEquals(before.top, epsilon: 0.5),
         reason: 'tabs must not move when the active tab changes',
       );
       expect(after.left, moreOrLessEquals(before.left, epsilon: 0.5));
+      expect(
+        underlineAfter.top,
+        moreOrLessEquals(underlineBefore.top, epsilon: 0.5),
+        reason: 'the reserved underline slot must not shift vertically',
+      );
+      expect(
+        underlineAfter.width,
+        moreOrLessEquals(underlineBefore.width, epsilon: 0.5),
+      );
     });
 
     testWidgets('does not shift the tab strip when counts change', (
@@ -412,11 +590,13 @@ void main() {
       final smallCount = tester.getRect(
         find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
       );
+      final smallUnderline = tester.getRect(underlineFor('Invites'));
 
       await pumpSection(tester, members: createMembers(150), invitesCount: 999);
       final largeCount = tester.getRect(
         find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
       );
+      final largeUnderline = tester.getRect(underlineFor('Invites'));
 
       expect(
         largeCount.top,
@@ -427,10 +607,26 @@ void main() {
         largeCount.height,
         moreOrLessEquals(smallCount.height, epsilon: 0.5),
       );
+      expect(
+        largeUnderline.top,
+        moreOrLessEquals(smallUnderline.top, epsilon: 0.5),
+        reason: 'the underline must stay in place when counts change',
+      );
+      expect(
+        largeUnderline.width,
+        moreOrLessEquals(smallUnderline.width, epsilon: 0.5),
+      );
     });
 
-    testWidgets('stays aligned across different window sizes', (tester) async {
-      for (final size in const [Size(1000, 800), Size(1600, 1000)]) {
+    testWidgets('keeps the underline aligned across window sizes', (
+      tester,
+    ) async {
+      for (final size in const [
+        Size(900, 700),
+        Size(1000, 800),
+        Size(1280, 800),
+        Size(1600, 1000),
+      ]) {
         await pumpSection(tester, members: createMembers(3), size: size);
 
         final membersLabel = tester.getRect(labelFor('Members'));
@@ -444,6 +640,21 @@ void main() {
           tester.getRect(badgeFor('Members')).center.dy,
           moreOrLessEquals(membersLabel.center.dy, epsilon: 1.0),
           reason: 'the badge must stay centred at $size',
+        );
+        expect(
+          underlineColor(tester, 'Members'),
+          equals(themePrimary(tester)),
+          reason: 'the themed underline must be visible at $size',
+        );
+        expect(
+          underlineColor(tester, 'Invites'),
+          equals(Colors.transparent),
+          reason: 'the inactive underline must stay absent at $size',
+        );
+        expect(
+          tester.getRect(underlineFor('Members')).width,
+          greaterThan(0),
+          reason: 'the underline must remain measurable at $size',
         );
       }
     });
