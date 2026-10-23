@@ -1,3 +1,5 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:zedu/core/core.dart';
 import 'package:zedu/features/features.dart';
 
@@ -10,14 +12,14 @@ class SignUpView extends ConsumerStatefulWidget {
 
 class _SignUpViewState extends ConsumerState<SignUpView> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   @override
   void dispose() {
-    _emailController.dispose();
     _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -177,7 +179,7 @@ class _SignUpViewState extends ConsumerState<SignUpView> {
                     ],
                   ),
                 ),
-                context.gapV(16),
+                context.gapV(24),
                 AppButton(
                   label: 'Create Account',
                   loading: authState.isLoading,
@@ -225,6 +227,8 @@ class _SignUpViewState extends ConsumerState<SignUpView> {
                   ),
                 ),
                 context.gapV(8),
+                SocialAuthButton(
+                  icon: 'assets/svgs/apple_logo.svg',
                   label: 'Sign up with Apple',
                   onPressed: () => AppToastService.show(
                     context,
