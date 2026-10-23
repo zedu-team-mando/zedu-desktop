@@ -475,26 +475,29 @@ class DmMessageComposerState extends ConsumerState<DmMessageComposer> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Focus(
                     onKeyEvent: _handleKeyEvent,
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      maxLines: null,
-                      minLines: 1,
-                      decoration: InputDecoration(
-                        hintText: _isEditMode
-                            ? 'Editing message…'
-                            : 'Message ${widget.recipientName}',
-                        hintStyle: TextStyle(
-                          color: colors.textHint.withValues(alpha: 0.75),
-                          fontSize: 12,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 160),
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        maxLines: null,
+                        minLines: 1,
+                        decoration: InputDecoration(
+                          hintText: _isEditMode
+                              ? 'Editing message…'
+                              : 'Message ${widget.recipientName}',
+                          hintStyle: TextStyle(
+                            color: colors.textHint.withValues(alpha: 0.75),
+                            fontSize: 12,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      ),
-                      style: TextStyle(
-                        color: colors.textPrimary,
-                        fontSize: 13,
-                        height: 1.5,
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 13,
+                          height: 1.5,
+                        ),
                       ),
                     ),
                   ),
