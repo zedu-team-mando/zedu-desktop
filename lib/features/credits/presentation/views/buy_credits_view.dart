@@ -16,7 +16,7 @@ class _BuyCreditsViewState extends ConsumerState<BuyCreditsView> {
   }
 
   void _loadCredits() {
-    final orgId = ref.read(authNotifierProvider).user?.currentOrg;
+    final orgId = ref.read(workspaceProvider).selectedWorkspace?.id;
     if (orgId != null && orgId.isNotEmpty) {
       ref.read(creditsNotifierProvider.notifier).load(orgId: orgId);
     }
@@ -53,6 +53,13 @@ class _BuyCreditsViewState extends ConsumerState<BuyCreditsView> {
     final balance = state.usage.balance > 0
         ? state.usage.balance
         : (authUser?.creditBalance ?? 0);
+
+    // Reload credits when workspace changes
+    ref.listen(workspaceProvider, (previous, next) {
+      if (previous?.selectedWorkspace?.id != next.selectedWorkspace?.id) {
+        _loadCredits();
+      }
+    });
 
     return ProfileSettingsShell(
       selectedSection: UserProfileSection.billing,
