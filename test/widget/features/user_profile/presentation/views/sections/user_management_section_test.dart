@@ -266,4 +266,206 @@ void main() {
       expect(find.text('No members match your search.'), findsNothing);
     });
   });
+
+  group('UserManagementSection tab alignment (#211)', () {
+    setUp(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
+    });
+
+    Future<void> pumpSection(
+      WidgetTester tester, {
+      List<TeamMember> members = const [],
+      int invitesCount = 0,
+      Size size = const Size(1400, 1000),
+    }) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: UserManagementSection(
+                  members: members,
+                  isSaving: false,
+                  invitesCount: invitesCount,
+                  onInvite: ({required email, required role}) async {},
+                  onUpdate: (_) {},
+                  onRemove: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+    }
+
+    // Both labels and both badges must sit on the same baselines. The badge is
+    // keyed by its tab so the geometry can be measured directly.
+    Finder badgeFor(String label) => find.byKey(Key('tab_badge_$label'));
+    Finder labelFor(String label) => find.byKey(Key('tab_label_$label'));
+
+    testWidgets('keeps both tab labels on the same baseline', (tester) async {
+      await pumpSection(tester, members: createMembers(3));
+
+      final membersLabel = tester.getRect(labelFor('Members'));
+      final invitesLabel = tester.getRect(labelFor('Invites'));
+
+      expect(
+        membersLabel.center.dy,
+        moreOrLessEquals(invitesLabel.center.dy, epsilon: 0.5),
+        reason: 'label baselines must be aligned across tabs',
+      );
+      expect(membersLabel.height, moreOrLessEquals(invitesLabel.height));
+    });
+
+    testWidgets('keeps both count badges vertically centred on the label', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3));
+
+      final membersLabel = tester.getRect(labelFor('Members'));
+      final invitesLabel = tester.getRect(labelFor('Invites'));
+      final membersBadge = tester.getRect(badgeFor('Members'));
+      final invitesBadge = tester.getRect(badgeFor('Invites'));
+
+      expect(
+        membersBadge.center.dy,
+        moreOrLessEquals(membersLabel.center.dy, epsilon: 1.0),
+        reason: 'the Members badge must be centred on its label',
+      );
+      expect(
+        invitesBadge.center.dy,
+        moreOrLessEquals(invitesLabel.center.dy, epsilon: 1.0),
+        reason: 'the Invites badge must be centred on its label',
+      );
+    });
+
+    testWidgets('uses identical label-to-badge spacing on both tabs', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3));
+
+      final membersGap =
+          tester.getRect(badgeFor('Members')).left -
+          tester.getRect(labelFor('Members')).right;
+      final invitesGap =
+          tester.getRect(badgeFor('Invites')).left -
+          tester.getRect(labelFor('Invites')).right;
+
+      expect(membersGap, moreOrLessEquals(invitesGap, epsilon: 1.0));
+      expect(membersGap, greaterThan(0));
+    });
+
+    testWidgets('renders both tabs at the same width and height', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3));
+
+      final membersTab = tester.getRect(
+        find.ancestor(of: badgeFor('Members'), matching: find.byType(InkWell)),
+      );
+      final invitesTab = tester.getRect(
+        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      );
+
+      expect(
+        membersTab.width,
+        moreOrLessEquals(invitesTab.width, epsilon: 0.5),
+        reason: 'both tabs must render at the same width',
+      );
+      expect(
+        membersTab.height,
+        moreOrLessEquals(invitesTab.height, epsilon: 0.5),
+        reason: 'both tabs must render at the same height',
+      );
+      expect(membersTab.top, moreOrLessEquals(invitesTab.top, epsilon: 0.5));
+    });
+
+    testWidgets('does not shift the tab strip when switching tabs', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+
+      final before = tester.getRect(labelFor('Members'));
+
+      await tester.tap(find.text('Invites'));
+      await tester.pumpAndSettle();
+
+      final after = tester.getRect(labelFor('Members'));
+      expect(
+        after.top,
+        moreOrLessEquals(before.top, epsilon: 0.5),
+        reason: 'tabs must not move when the active tab changes',
+      );
+      expect(after.left, moreOrLessEquals(before.left, epsilon: 0.5));
+    });
+
+    testWidgets('does not shift the tab strip when counts change', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 0);
+      final smallCount = tester.getRect(
+        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      );
+
+      await pumpSection(tester, members: createMembers(150), invitesCount: 999);
+      final largeCount = tester.getRect(
+        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      );
+
+      expect(
+        largeCount.top,
+        moreOrLessEquals(smallCount.top, epsilon: 0.5),
+        reason: 'wider count badges must not move the tab strip',
+      );
+      expect(
+        largeCount.height,
+        moreOrLessEquals(smallCount.height, epsilon: 0.5),
+      );
+    });
+
+    testWidgets('stays aligned across different window sizes', (tester) async {
+      for (final size in const [Size(1000, 800), Size(1600, 1000)]) {
+        await pumpSection(tester, members: createMembers(3), size: size);
+
+        final membersLabel = tester.getRect(labelFor('Members'));
+        final invitesLabel = tester.getRect(labelFor('Invites'));
+        expect(
+          membersLabel.center.dy,
+          moreOrLessEquals(invitesLabel.center.dy, epsilon: 0.5),
+          reason: 'labels must stay aligned at $size',
+        );
+        expect(
+          tester.getRect(badgeFor('Members')).center.dy,
+          moreOrLessEquals(membersLabel.center.dy, epsilon: 1.0),
+          reason: 'the badge must stay centred at $size',
+        );
+      }
+    });
+
+    testWidgets('shows the members table on the Members tab and switches '
+        'to the invites view on tap', (tester) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+
+      expect(find.text('member0@example.com'), findsWidgets);
+      expect(find.text('2 pending invites.'), findsNothing);
+
+      await tester.tap(find.text('Invites'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('member0@example.com'), findsNothing);
+      expect(find.text('2 pending invites.'), findsOneWidget);
+
+      await tester.tap(find.text('Members'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('member0@example.com'), findsWidgets);
+      expect(find.text('2 pending invites.'), findsNothing);
+    });
+  });
 }

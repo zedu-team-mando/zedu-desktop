@@ -1,6 +1,8 @@
 import 'package:zedu/core/core.dart';
 import 'package:zedu/features/features.dart';
 
+enum _UserManagementTab { members, invites }
+
 class UserManagementSection extends StatefulWidget {
   const UserManagementSection({
     super.key,
@@ -9,6 +11,7 @@ class UserManagementSection extends StatefulWidget {
     required this.onInvite,
     required this.onUpdate,
     required this.onRemove,
+    this.invitesCount = 0,
   });
 
   final List<TeamMember> members;
@@ -18,6 +21,9 @@ class UserManagementSection extends StatefulWidget {
   final ValueChanged<TeamMember> onUpdate;
   final ValueChanged<String> onRemove;
 
+  /// Number of outstanding invitations shown on the `Invites` tab badge.
+  final int invitesCount;
+
   @override
   State<UserManagementSection> createState() => _UserManagementSectionState();
 }
@@ -26,7 +32,16 @@ class _UserManagementSectionState extends State<UserManagementSection> {
   final _searchController = TextEditingController();
   String _roleFilter = 'All Roles';
   int _currentPage = 1;
+  _UserManagementTab _tab = _UserManagementTab.members;
   static const int _pageSize = 10;
+
+  void _selectTab(_UserManagementTab tab) {
+    if (_tab == tab) return;
+    setState(() {
+      _tab = tab;
+      _currentPage = 1;
+    });
+  }
 
   @override
   void dispose() {
@@ -69,14 +84,21 @@ class _UserManagementSectionState extends State<UserManagementSection> {
         ),
         const SizedBox(height: 34),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             _TabLabel(
               label: 'Members',
               count: widget.members.length,
-              active: true,
+              active: _tab == _UserManagementTab.members,
+              onTap: () => _selectTab(_UserManagementTab.members),
             ),
             const SizedBox(width: 32),
-            const _TabLabel(label: 'Invites', count: 1, active: false),
+            _TabLabel(
+              label: 'Invites',
+              count: widget.invitesCount,
+              active: _tab == _UserManagementTab.invites,
+              onTap: () => _selectTab(_UserManagementTab.invites),
+            ),
           ],
         ),
         const SizedBox(height: 24),
@@ -135,7 +157,45 @@ class _UserManagementSectionState extends State<UserManagementSection> {
                   ],
                 ),
               ),
-              if (filtered.isEmpty)
+              if (_tab == _UserManagementTab.invites)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 48,
+                    horizontal: 24,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            color: context.colors.divider,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.mail_outline_rounded,
+                            size: 28,
+                            color: context.colors.textHint,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          widget.invitesCount == 0
+                              ? 'No pending invites.'
+                              : '${widget.invitesCount} pending invite'
+                                    '${widget.invitesCount == 1 ? '' : 's'}.',
+                          style: context.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: context.colors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (filtered.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     vertical: 48,
@@ -243,7 +303,7 @@ class _UserManagementSectionState extends State<UserManagementSection> {
                     ),
                   ),
                 ),
-              if (totalPages > 1) ...[
+              if (_tab == _UserManagementTab.members && totalPages > 1) ...[
                 const Divider(height: 1),
                 Padding(
                   padding: const EdgeInsets.all(16),
@@ -313,57 +373,115 @@ class _UserManagementSectionState extends State<UserManagementSection> {
   );
 }
 
+/// Fixed geometry shared by every tab so the labels, badges and active
+/// indicator line up regardless of the label/badge text width.
+class _TabMetrics {
+  const _TabMetrics._();
+
+  /// Gap between the label and its count badge.
+  static const double labelToBadge = 8;
+
+  /// Gap below the label row before the active underline.
+  static const double labelToUnderline = 8;
+
+  /// Total height reserved for the underline area so switching tabs and
+  /// changing counts never shifts the table below the tab strip.
+  static const double underlineHeight = 2;
+
+  /// Minimum tab width so the active underline is the same size for both tabs.
+  static const double minTabWidth = 80;
+
+  /// Horizontal padding applied symmetrically to each tab.
+  static const EdgeInsets tabPadding = EdgeInsets.symmetric(
+    horizontal: 4,
+    vertical: 6,
+  );
+}
+
 class _TabLabel extends StatelessWidget {
   const _TabLabel({
     required this.label,
     required this.count,
     required this.active,
+    this.onTap,
   });
+
   final String label;
   final int count;
   final bool active;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: context.textTheme.bodyMedium?.copyWith(
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                color: active
-                    ? context.colors.sidebar
-                    : const Color(0xFF6B7280),
+    final labelColor = active
+        ? context.colors.sidebar
+        : const Color(0xFF6B7280);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: _TabMetrics.minTabWidth),
+        child: Padding(
+          padding: _TabMetrics.tabPadding,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                // Prevent the row from stretching or shrinking so both tabs
+                // render their labels/badges with identical alignment.
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    key: Key('tab_label_$label'),
+                    style: context.textTheme.bodyMedium?.copyWith(
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      color: labelColor,
+                    ),
+                  ),
+                  const SizedBox(width: _TabMetrics.labelToBadge),
+                  // The badge keeps a constant line height and its content is
+                  // centred so the pill always sits on the label's midline.
+                  Container(
+                    key: Key('tab_badge_$label'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 20),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? const Color(0xFFE9E9FF)
+                          : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      count.toString(),
+                      textAlign: TextAlign.center,
+                      style: context.textTheme.labelSmall?.copyWith(
+                        color: labelColor,
+                        fontSize: 10,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: active
-                    ? const Color(0xFFE9E9FF)
-                    : const Color(0xFFF3F4F6),
-                borderRadius: BorderRadius.circular(10),
+              const SizedBox(height: _TabMetrics.labelToUnderline),
+              // Always render the underline slot (transparent when inactive) so
+              // the tab strip reserves the same height for both tabs.
+              Container(
+                height: _TabMetrics.underlineHeight,
+                color: active ? context.colors.sidebar : Colors.transparent,
               ),
-              child: Text(
-                count.toString(),
-                style: context.textTheme.labelSmall?.copyWith(
-                  color: active
-                      ? context.colors.sidebar
-                      : const Color(0xFF6B7280),
-                  fontSize: 10,
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-        if (active) ...[
-          const SizedBox(height: 8),
-          Container(height: 2, width: 80, color: context.colors.sidebar),
-        ],
-      ],
+      ),
     );
   }
 }
