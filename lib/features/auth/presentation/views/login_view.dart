@@ -79,7 +79,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
               Image.asset('assets/pngs/zedu_logo.png', width: 83, height: 31),
               Text.rich(
                 TextSpan(
-                  text: 'Already have an account? ',
+                  text: 'Don\'t have an account? ',
                   style: context.textTheme.bodyLarge?.copyWith(
                     fontWeight: FontWeight.w400,
                     color: context.colors.textPrimary,
@@ -87,7 +87,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
                   ),
                   children: [
                     TextSpan(
-                      text: 'Sign up',
+                      text: 'Sign in',
                       style: context.textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w400,
                         color: context.colors.primary,
@@ -112,10 +112,10 @@ class _LoginViewState extends ConsumerState<LoginView> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 context.gapV(136),
-                Text('Login to Zedu', style: context.textTheme.headlineMedium),
+                Text('Sign in to Zedu', style: context.textTheme.headlineMedium),
                 context.gapV(8),
                 Text(
-                  'Welcome back! We’ve missed you!',
+                  'Enter your credentials to access your account',
                   style: context.textTheme.bodyMedium?.copyWith(
                     color: context.colors.textSecondary,
                   ),
@@ -123,14 +123,14 @@ class _LoginViewState extends ConsumerState<LoginView> {
                 context.gapV(32),
                 SocialAuthButton(
                   icon: 'assets/svgs/google_logo.svg',
-                  label: 'Sign up with Google',
+                  label: 'Sign in with Google',
                   onPressed: () =>
                       ref.read(authNotifierProvider.notifier).loginWithGoogle(),
                 ),
                 context.gapV(12),
                 SocialAuthButton(
                   icon: 'assets/svgs/apple_logo.svg',
-                  label: 'Sign up with Apple',
+                  label: 'Sign in with Apple',
                   onPressed: () => AppToastService.show(
                     context,
                     type: AppToastType.info,
