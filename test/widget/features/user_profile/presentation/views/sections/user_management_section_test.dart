@@ -361,10 +361,10 @@ void main() {
       expect(membersGap, greaterThan(0));
     });
 
-    testWidgets('renders both tabs at the same width and height', (
+    testWidgets('renders both tabs at the same width, height and spacing', (
       tester,
     ) async {
-      await pumpSection(tester, members: createMembers(3));
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
 
       final membersTab = tester.getRect(
         find.ancestor(of: badgeFor('Members'), matching: find.byType(InkWell)),
@@ -375,8 +375,8 @@ void main() {
 
       expect(
         membersTab.width,
-        moreOrLessEquals(invitesTab.width, epsilon: 0.5),
-        reason: 'both tabs must render at the same width',
+        moreOrLessEquals(invitesTab.width, epsilon: 0.01),
+        reason: 'Members and Invites must have identical widths',
       );
       expect(
         membersTab.height,
@@ -384,6 +384,86 @@ void main() {
         reason: 'both tabs must render at the same height',
       );
       expect(membersTab.top, moreOrLessEquals(invitesTab.top, epsilon: 0.5));
+      expect(
+        invitesTab.left - membersTab.right,
+        moreOrLessEquals(24, epsilon: 0.5),
+        reason: 'tabs should be spaced 24px apart',
+      );
+    });
+
+    testWidgets('uses one compact width derived from the longer label', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+
+      final membersTab = tester.getRect(
+        find.ancestor(of: badgeFor('Members'), matching: find.byType(InkWell)),
+      );
+      final invitesTab = tester.getRect(
+        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      );
+      final longerLabel = tester.getRect(labelFor('Members'));
+      final badge = tester.getRect(badgeFor('Members'));
+
+      expect(
+        invitesTab.width,
+        moreOrLessEquals(membersTab.width, epsilon: 0.01),
+      );
+
+      // Longer label + label→badge gap (8) + fixed badge (34) + 4px padding on
+      // each side. Anything larger would be wasted space.
+      expect(
+        membersTab.width,
+        moreOrLessEquals(longerLabel.width + 8 + badge.width + 8, epsilon: 0.5),
+        reason: 'the shared width must be compact, not padded out',
+      );
+    });
+
+    testWidgets('keeps both tab widths equal when counts change', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 0);
+      final small = tester.getRect(
+        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      );
+
+      await pumpSection(tester, members: createMembers(150), invitesCount: 999);
+      final large = tester.getRect(
+        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      );
+      final membersTab = tester.getRect(
+        find.ancestor(of: badgeFor('Members'), matching: find.byType(InkWell)),
+      );
+
+      expect(
+        large.width,
+        moreOrLessEquals(small.width, epsilon: 0.01),
+        reason: 'a wider count must not resize the tab',
+      );
+      expect(large.left, moreOrLessEquals(small.left, epsilon: 0.5));
+      expect(large.width, moreOrLessEquals(membersTab.width, epsilon: 0.01));
+    });
+
+    testWidgets('leaves the inactive badge background transparent', (
+      tester,
+    ) async {
+      await pumpSection(tester, members: createMembers(3), invitesCount: 2);
+
+      BoxDecoration badgeDecoration(String label) =>
+          tester.widget<Container>(badgeFor(label)).decoration as BoxDecoration;
+
+      expect(
+        badgeDecoration('Invites').color,
+        equals(Colors.transparent),
+        reason: 'the inactive tab must not look like a separate button',
+      );
+      expect(
+        badgeDecoration('Members').color,
+        equals(
+          tester.element(find.byType(UserManagementSection)).colors.primaryBg,
+        ),
+        reason: 'the active badge uses the theme surface tint',
+      );
     });
 
     Finder underlineFor(String label) =>
@@ -422,7 +502,6 @@ void main() {
         );
 
         final membersUnderline = tester.getRect(underlineFor('Members'));
-        final invitesUnderline = tester.getRect(underlineFor('Invites'));
         expect(
           membersUnderline.width,
           greaterThan(0),
@@ -435,8 +514,22 @@ void main() {
         );
         expect(
           membersUnderline.width,
-          moreOrLessEquals(invitesUnderline.width),
-          reason: 'both tabs must reserve the same underline width',
+          equals(
+            tester
+                .getRect(
+                  find.ancestor(
+                    of: badgeFor('Members'),
+                    matching: find.byType(InkWell),
+                  ),
+                )
+                .width,
+          ),
+          reason: 'the underline must align to the active tab width',
+        );
+        expect(
+          tester.getRect(underlineFor('Invites')).width,
+          moreOrLessEquals(membersUnderline.width, epsilon: 0.01),
+          reason: 'both tabs reserve the same underline width',
         );
       },
     );
@@ -542,6 +635,11 @@ void main() {
 
       final invitesUnderlineAfter = tester.getRect(underlineFor('Invites'));
       expect(
+        invitesUnderlineAfter.width,
+        moreOrLessEquals(membersUnderlineBefore.width, epsilon: 0.01),
+        reason: 'equal tabs keep equal underline widths',
+      );
+      expect(
         invitesUnderlineAfter.center.dx,
         greaterThan(membersUnderlineBefore.center.dx),
         reason: 'the underline must now be drawn further right',
@@ -560,18 +658,29 @@ void main() {
 
       final before = tester.getRect(labelFor('Members'));
       final underlineBefore = tester.getRect(underlineFor('Members'));
+      final invitesBefore = tester.getRect(
+        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      );
 
       await tester.tap(find.text('Invites'));
       await tester.pumpAndSettle();
 
       final after = tester.getRect(labelFor('Members'));
       final underlineAfter = tester.getRect(underlineFor('Members'));
+      final invitesAfter = tester.getRect(
+        find.ancestor(of: badgeFor('Invites'), matching: find.byType(InkWell)),
+      );
       expect(
         after.top,
         moreOrLessEquals(before.top, epsilon: 0.5),
         reason: 'tabs must not move when the active tab changes',
       );
       expect(after.left, moreOrLessEquals(before.left, epsilon: 0.5));
+      expect(
+        invitesAfter.left,
+        moreOrLessEquals(invitesBefore.left, epsilon: 0.5),
+        reason: 'the neighbouring tab must not jump horizontally',
+      );
       expect(
         underlineAfter.top,
         moreOrLessEquals(underlineBefore.top, epsilon: 0.5),
@@ -618,7 +727,7 @@ void main() {
       );
     });
 
-    testWidgets('keeps the underline aligned across window sizes', (
+    testWidgets('keeps equal widths and spacing across window sizes', (
       tester,
     ) async {
       for (final size in const [
@@ -631,6 +740,29 @@ void main() {
 
         final membersLabel = tester.getRect(labelFor('Members'));
         final invitesLabel = tester.getRect(labelFor('Invites'));
+        final membersTab = tester.getRect(
+          find.ancestor(
+            of: badgeFor('Members'),
+            matching: find.byType(InkWell),
+          ),
+        );
+        final invitesTab = tester.getRect(
+          find.ancestor(
+            of: badgeFor('Invites'),
+            matching: find.byType(InkWell),
+          ),
+        );
+
+        expect(
+          membersTab.width,
+          moreOrLessEquals(invitesTab.width, epsilon: 0.01),
+          reason: 'tabs must stay identically wide at $size',
+        );
+        expect(
+          invitesTab.left - membersTab.right,
+          moreOrLessEquals(24, epsilon: 0.5),
+          reason: 'tab spacing must stay compact at $size',
+        );
         expect(
           membersLabel.center.dy,
           moreOrLessEquals(invitesLabel.center.dy, epsilon: 0.5),
@@ -653,8 +785,13 @@ void main() {
         );
         expect(
           tester.getRect(underlineFor('Members')).width,
-          greaterThan(0),
-          reason: 'the underline must remain measurable at $size',
+          moreOrLessEquals(membersTab.width, epsilon: 0.5),
+          reason: 'the underline must span the full tab at $size',
+        );
+        expect(
+          tester.getRect(underlineFor('Invites')).width,
+          moreOrLessEquals(membersTab.width, epsilon: 0.5),
+          reason: 'the inactive tab reserves the same width at $size',
         );
       }
     });

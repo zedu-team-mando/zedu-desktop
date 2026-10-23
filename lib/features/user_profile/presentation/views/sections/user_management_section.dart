@@ -68,6 +68,12 @@ class _UserManagementSectionState extends State<UserManagementSection> {
     final startIndex = (currentPage - 1) * _pageSize;
     final paginatedMembers = filtered.skip(startIndex).take(_pageSize).toList();
 
+    // One width shared by both tabs so they are exactly equal and compact.
+    final tabWidth = _TabMetrics.sharedWidth(context, const [
+      'Members',
+      'Invites',
+    ]);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -88,13 +94,15 @@ class _UserManagementSectionState extends State<UserManagementSection> {
           children: [
             _TabLabel(
               label: 'Members',
+              width: tabWidth,
               count: widget.members.length,
               active: _tab == _UserManagementTab.members,
               onTap: () => _selectTab(_UserManagementTab.members),
             ),
-            const SizedBox(width: 32),
+            const SizedBox(width: _TabMetrics.tabSpacing),
             _TabLabel(
               label: 'Invites',
+              width: tabWidth,
               count: widget.invitesCount,
               active: _tab == _UserManagementTab.invites,
               onTap: () => _selectTab(_UserManagementTab.invites),
@@ -388,31 +396,57 @@ class _TabMetrics {
   /// changing counts never shifts the table below the tab strip.
   static const double underlineHeight = 3;
 
-  /// Minimum tab width. Both tabs share it, so the underline is the same
-  /// size for each tab and switching never resizes the strip. It is wider than
-  /// the widest realistic label+badge so the active (bolder) label cannot make
-  /// the tab grow when the user switches tabs.
-  static const double minTabWidth = 128;
-
   /// Fixed badge width so a changing count never resizes the tab strip.
   static const double badgeWidth = 34;
 
+  /// Gap between the two tabs.
+  static const double tabSpacing = 24;
+
   /// Horizontal padding applied symmetrically to each tab.
   static const EdgeInsets tabPadding = EdgeInsets.symmetric(
-    horizontal: 8,
+    horizontal: 4,
     vertical: 6,
   );
+
+  /// Shared tab width: the wider of [labels] measured with the selected
+  /// (semibold) style, plus the label→badge gap, the badge and the padding.
+  /// Measuring once and applying it to both tabs keeps them exactly equal and
+  /// compact, independent of label length, count or window size.
+  static double sharedWidth(BuildContext context, List<String> labels) {
+    final style = context.textTheme.bodyMedium?.copyWith(
+      fontWeight: FontWeight.w600,
+    );
+    final textDirection = Directionality.of(context);
+    final textScaler = MediaQuery.textScalerOf(context);
+
+    var widestLabel = 0.0;
+    for (final label in labels) {
+      final painter = TextPainter(
+        text: TextSpan(text: label, style: style),
+        textDirection: textDirection,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      if (painter.width > widestLabel) widestLabel = painter.width;
+      painter.dispose();
+    }
+
+    return (widestLabel + labelToBadge + badgeWidth + tabPadding.horizontal)
+        .ceilToDouble();
+  }
 }
 
 class _TabLabel extends StatelessWidget {
   const _TabLabel({
     required this.label,
+    required this.width,
     required this.count,
     required this.active,
     this.onTap,
   });
 
   final String label;
+  final double width;
   final int count;
   final bool active;
   final VoidCallback? onTap;
@@ -426,80 +460,75 @@ class _TabLabel extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: _TabMetrics.minTabWidth),
-        // IntrinsicWidth gives the tab a content-driven width; the stretched
-        // underline below then spans exactly the same width as the tab. A
-        // childless Container inside an unbounded Row would otherwise collapse
-        // to zero width, which is what hid the previous underline.
-        child: IntrinsicWidth(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: _TabMetrics.tabPadding,
-                child: Row(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      label,
-                      key: Key('tab_label_$label'),
-                      style: context.textTheme.bodyMedium?.copyWith(
-                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                        color: labelColor,
-                      ),
+      // Both tabs receive the same width, so they stay identical regardless of
+      // label length or count. The stretched underline spans that full width.
+      child: SizedBox(
+        width: width,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: _TabMetrics.tabPadding,
+              child: Row(
+                mainAxisSize: MainAxisSize.max,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    key: Key('tab_label_$label'),
+                    style: context.textTheme.bodyMedium?.copyWith(
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      color: labelColor,
                     ),
-                    const SizedBox(width: _TabMetrics.labelToBadge),
-                    // The badge keeps a constant line height and its content is
-                    // centred so the pill always sits on the label's midline.
-                    // Its width is fixed so count changes cannot resize the tab.
-                    Container(
-                      key: Key('tab_badge_$label'),
-                      width: _TabMetrics.badgeWidth,
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: active
-                            ? const Color(0xFFE9E9FF)
-                            : const Color(0xFFF3F4F6),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        count.toString(),
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.fade,
-                        textAlign: TextAlign.center,
-                        style: context.textTheme.labelSmall?.copyWith(
-                          color: labelColor,
-                          fontSize: 10,
-                          height: 1.3,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: _TabMetrics.labelToUnderline),
-              // Always reserve the underline height so switching tabs or
-              // changing counts never shifts the strip. Only the active tab
-              // paints the indicator, using the design system's primary colour
-              // (the same token other selected indicators use).
-              Container(
-                key: Key('tab_underline_$label'),
-                height: _TabMetrics.underlineHeight,
-                decoration: BoxDecoration(
-                  color: active ? context.colors.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(
-                    _TabMetrics.underlineHeight / 2,
                   ),
+                  const SizedBox(width: _TabMetrics.labelToBadge),
+                  // The badge keeps a constant line height and its content is
+                  // centred so the pill always sits on the label's midline.
+                  // Its width is fixed so count changes cannot resize the tab.
+                  Container(
+                    key: Key('tab_badge_$label'),
+                    width: _TabMetrics.badgeWidth,
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? context.colors.primaryBg
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      count.toString(),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.fade,
+                      textAlign: TextAlign.center,
+                      style: context.textTheme.labelSmall?.copyWith(
+                        color: labelColor,
+                        fontSize: 10,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: _TabMetrics.labelToUnderline),
+            // Always reserve the underline height so switching tabs or
+            // changing counts never shifts the strip. Only the active tab
+            // paints the indicator, using the design system's primary colour.
+            Container(
+              key: Key('tab_underline_$label'),
+              height: _TabMetrics.underlineHeight,
+              decoration: BoxDecoration(
+                color: active ? context.colors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(
+                  _TabMetrics.underlineHeight / 2,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
