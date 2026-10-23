@@ -413,15 +413,12 @@ class _TabMetrics {
   static const String badgeMaxCount = '999';
 
   /// Gap between the two tabs.
-  static const double tabSpacing = 24;
+  static const double tabSpacing = 12;
 
   /// Padding applied symmetrically to each tab. Only the horizontal component
   /// contributes to the shared width; the vertical component contributes to
-  /// the shared header height so tab content sits centred in it.
-  static const EdgeInsets tabPadding = EdgeInsets.symmetric(
-    horizontal: 4,
-    vertical: 2,
-  );
+  /// the shared header height. Extra top padding balances the underline gap.
+  static const EdgeInsets tabPadding = EdgeInsets.fromLTRB(4, 8, 4, 2);
 
   /// Resolves the geometry shared by both tabs.
   ///
@@ -525,55 +522,60 @@ class _TabLabel extends StatelessWidget {
               height: headerHeight,
               // Centering the whole label + badge row inside the shared header
               // keeps their vertical geometry identical on both tabs.
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      label,
-                      key: Key('tab_label_$label'),
-                      style: context.textTheme.bodyMedium?.copyWith(
-                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                        color: labelColor,
-                      ),
-                    ),
-                    const SizedBox(width: _TabMetrics.labelToBadge),
-                    // The badge hugs its count with symmetric padding, so a
-                    // single digit stays compact. The shared tab width already
-                    // reserves room for the widest count, so growing from 0 to
-                    // 999 never clips the badge or resizes the tab. A
-                    // DecoratedBox (rather than a Container with alignment) is
-                    // used so the pill keeps its intrinsic height instead of
-                    // stretching to fill the header.
-                    DecoratedBox(
-                      key: Key('tab_badge_$label'),
-                      decoration: BoxDecoration(
-                        color: active
-                            ? context.colors.primaryBg
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: _TabMetrics.badgeHorizontalPadding,
-                          vertical: _TabMetrics.badgeVerticalPadding,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        label,
+                        key: Key('tab_label_$label'),
+                        style: context.textTheme.bodyMedium?.copyWith(
+                          fontWeight: active
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: labelColor,
                         ),
-                        child: Text(
-                          count.toString(),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.fade,
-                          textAlign: TextAlign.center,
-                          style: context.textTheme.labelSmall?.copyWith(
-                            color: labelColor,
-                            fontSize: _TabMetrics.badgeFontSize,
-                            height: _TabMetrics.badgeLineHeight,
+                      ),
+                      const SizedBox(width: _TabMetrics.labelToBadge),
+                      // The badge hugs its count with symmetric padding, so a
+                      // single digit stays compact. The shared tab width already
+                      // reserves room for the widest count, so growing from 0 to
+                      // 999 never clips the badge or resizes the tab. A
+                      // DecoratedBox (rather than a Container with alignment) is
+                      // used so the pill keeps its intrinsic height instead of
+                      // stretching to fill the header.
+                      DecoratedBox(
+                        key: Key('tab_badge_$label'),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? context.colors.primaryBg
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: _TabMetrics.badgeHorizontalPadding,
+                            vertical: _TabMetrics.badgeVerticalPadding,
+                          ),
+                          child: Text(
+                            count.toString(),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.fade,
+                            textAlign: TextAlign.center,
+                            style: context.textTheme.labelSmall?.copyWith(
+                              color: labelColor,
+                              fontSize: _TabMetrics.badgeFontSize,
+                              height: _TabMetrics.badgeLineHeight,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

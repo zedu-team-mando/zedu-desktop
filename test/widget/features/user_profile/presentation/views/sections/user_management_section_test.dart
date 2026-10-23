@@ -317,8 +317,7 @@ void main() {
     Finder countFor(String label) =>
         find.descendant(of: badgeFor(label), matching: find.byType(Text));
 
-    /// Distance between the tab content and the top/bottom of the shared
-    /// header area (everything above the underline gap).
+    /// Visible top space and bottom space before the underline.
     ({double top, double bottom}) headerGaps(
       WidgetTester tester,
       String label,
@@ -329,9 +328,7 @@ void main() {
       final badgeRect = tester.getRect(badgeFor(label));
       final contentTop = math.min(labelRect.top, badgeRect.top);
       final contentBottom = math.max(labelRect.bottom, badgeRect.bottom);
-      // The underline is preceded by a fixed 6px gap.
-      final headerBottom = underline.top - 6;
-      return (top: contentTop - tab.top, bottom: headerBottom - contentBottom);
+      return (top: contentTop - tab.top, bottom: underline.top - contentBottom);
     }
 
     testWidgets('keeps the underline close to the vertically centred content', (
@@ -348,8 +345,8 @@ void main() {
         final contentBottom = math.max(text.bottom, badge.bottom);
         final visibleGap = underline.top - contentBottom;
 
-        expect(visibleGap, inInclusiveRange(6, 8));
-        expect(contentTop - tab.top, inInclusiveRange(0, 3));
+        expect(visibleGap, inInclusiveRange(7, 9));
+        expect(contentTop - tab.top, inInclusiveRange(7, 9));
         expect(underline.bottom, moreOrLessEquals(tab.bottom, epsilon: 0.01));
       }
     });
@@ -431,7 +428,7 @@ void main() {
       expect(membersTab.top, moreOrLessEquals(invitesTab.top, epsilon: 0.5));
       expect(
         invitesTab.left - membersTab.right,
-        moreOrLessEquals(24, epsilon: 0.5),
+        moreOrLessEquals(12, epsilon: 0.5),
         reason: 'tabs should be spaced 24px apart',
       );
     });
@@ -987,7 +984,7 @@ void main() {
         );
         expect(
           invitesTab.left - membersTab.right,
-          moreOrLessEquals(24, epsilon: 0.5),
+          moreOrLessEquals(12, epsilon: 0.5),
           reason: 'tab spacing must stay compact at $size',
         );
         expect(
