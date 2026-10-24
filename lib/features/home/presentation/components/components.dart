@@ -5,4 +5,6 @@ export 'set_status_dialog.dart';
 export 'emoji_picker_dialog.dart';
 export 'app_sidebar_rail.dart';
 export 'top_user_menu.dart';
+export 'dm_empty_state.dart';
+export 'sidebar_channel_list.dart';
 export 'window_title_listener.dart';

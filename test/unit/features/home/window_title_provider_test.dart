@@ -7,7 +7,7 @@ class FakeChannelNotifier extends ChannelNotifier {
   final List<Channel> _channels;
 
   @override
-  ChannelState build() => ChannelState(channels: _channels);
+  Future<List<Channel>> build() async => _channels;
 }
 
 class FakeDmListNotifier extends DmListNotifier {
@@ -59,7 +59,8 @@ Future<ProviderContainer> _makeContainer({
     ],
   );
   addTearDown(container.dispose);
-  // Wait for the DM list to finish loading.
+  // Wait for the channel and DM lists to finish loading.
+  await container.read(channelProvider.future);
   await container.read(dmListProvider.future);
   return container;
 }
